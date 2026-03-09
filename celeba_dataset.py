@@ -1,6 +1,6 @@
 from pathlib import Path
 from PIL import Image
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import Dataset
 from torchvision import transforms
 
 class CelebAGray32(Dataset):
@@ -13,9 +13,10 @@ class CelebAGray32(Dataset):
             raise FileNotFoundError(f"No jpg images found in {root}")
 
         self.transform = transforms.Compose([
-            transforms.Resize((img_size, img_size)),          # downsize
+            transforms.Resize((img_size, img_size)),      # downsize
             transforms.Grayscale(num_output_channels=1),  # single-channel grey
-            transforms.ToTensor(),                 # -> [1, img_size, img_size] float in [0, 1]
+            transforms.ToTensor(),                        # -> [1, img_size, img_size] float in [0, 1]
+            transforms.Normalize(mean=[0.5], std=[0.5]),  # normalization to [-1, 1]
         ])
 
     def __len__(self):
