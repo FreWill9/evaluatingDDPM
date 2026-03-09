@@ -4,7 +4,7 @@ import torch.nn.functional as F
 from torchvision import datasets, transforms
 from torch.utils.data import DataLoader, Subset
 import torch.optim as optim
-from models.unet import UNet
+from models.unet import UNET
 import numpy as np
 import random
 import math
@@ -15,11 +15,15 @@ def train(batch_size: int,
           num_timesteps: int,
           lr: float = 2e-5):
 
+    # use GPU if available
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
     # TODO: use correct dataset
     train_dataset = datasets.MNIST(root='./data', train=True, download=False, transform=transforms.ToTensor())
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, drop_last=True, num_workers=4)
 
-    model = UNet()
+    # choose model
+    model = UNET(device=device)
     optimizer = optim.Adam(model.parameters(), lr=lr)
     criterion = nn.MSELoss(reduction='mean')
 
