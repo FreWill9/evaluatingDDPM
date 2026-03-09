@@ -14,6 +14,7 @@ def train(batch_size: int,
           num_epochs: int,
           num_timesteps: int,
           lr: float = 2e-5):
+
     # TODO: use correct dataset
     train_dataset = datasets.MNIST(root='./data', train=True, download=False, transform=transforms.ToTensor())
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, drop_last=True, num_workers=4)
