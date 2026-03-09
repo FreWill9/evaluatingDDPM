@@ -8,16 +8,22 @@ from models.unet import UNet
 import numpy as np
 import random
 import math
+from celeba_dataset import CelebAGray32
 
-
-def train(batch_size: int,
+def train(data_dir: str, img_size: int, batch_size: int,
           num_epochs: int,
           num_timesteps: int,
           lr: float = 2e-5):
 
-    # TODO: use correct dataset
-    train_dataset = datasets.MNIST(root='./data', train=True, download=False, transform=transforms.ToTensor())
-    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, drop_last=True, num_workers=4)
+    dataset = CelebAGray32(data_dir, img_size=img_size)
+    train_loader = DataLoader(
+        dataset,
+        batch_size=batch_size,
+        shuffle=True,
+        drop_last=True,
+        num_workers=4,
+        pin_memory=True,
+    )
 
     model = UNet()
     optimizer = optim.Adam(model.parameters(), lr=lr)
@@ -30,15 +36,13 @@ def train(batch_size: int,
 
     # TODO: checkpoint
 
-
 def sample():
     pass
 
 
 def main():
-    train(batch_size=128, num_epochs=15, num_timesteps=1_000)
+    train(data_dir=r"D:/data/img_align_celeba", img_size=32, batch_size=128, num_epochs=15, num_timesteps=1_000)
     # sample()
-
 
 if __name__ == '__main__':
     main()
