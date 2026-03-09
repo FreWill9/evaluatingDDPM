@@ -2,6 +2,10 @@ import torch
 from torch import nn
 import math
 
+"""
+A minimal UNet for 32×32 single-channel images with sinusoidal timestep embeddings.
+"""
+
 class Block(nn.Module):
     """ Convolutional block used in the U-Net encoder/decoder. """
     def __init__(self, in_ch, out_ch, time_emb_dim, up=False):
@@ -39,7 +43,6 @@ class SinusoidalPositionEmbeddings(nn.Module):
         embeddings = torch.exp(torch.arange(half_dim, device=device) * -embeddings)
         embeddings = time[:, None] * embeddings[None, :]
         embeddings = torch.cat((embeddings.sin(), embeddings.cos()), dim=-1)
-        # TODO: Double check the ordering here
         return embeddings
 
 class SimpleUnet(nn.Module):
@@ -50,10 +53,10 @@ class SimpleUnet(nn.Module):
     """
     def __init__(self):
         super().__init__()
-        image_channels = 3
-        down_channels = (64, 128, 256, 512, 1024)
-        up_channels = (1024, 512, 256, 128, 64)
-        out_dim = 3
+        image_channels = 1
+        down_channels = (64, 128, 256, 512)
+        up_channels = (512, 256, 128, 64)
+        out_dim = 1
         time_emb_dim = 32
 
         # Time embedding
