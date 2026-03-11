@@ -14,6 +14,7 @@ os.makedirs(save_dir, exist_ok=True)
 full_dataset = CelebAGray32(data_dir, img_size=img_size)
 
 indices = list(range(len(full_dataset)))
+random.seed(67)
 random.shuffle(indices)
 indices = indices[:subset_size]
 dataset = Subset(full_dataset, indices)
