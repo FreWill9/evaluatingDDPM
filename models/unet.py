@@ -94,9 +94,9 @@ class SinusoidalEmbeddings(nn.Module):
 
 class UNET(nn.Module):
     def __init__(self,
-                 Channels: List = [64, 128, 256, 512, 512, 384],
-                 Attentions: List = [False, True, False, False, False, True],
-                 Upscales: List = [False, False, False, True, True, True],
+                 Channels: List = None,
+                 Attentions: List = None,
+                 Upscales: List = None,
                  num_groups: int = 32,
                  dropout_prob: float = 0.0,
                  num_heads: int = 8,
@@ -105,6 +105,13 @@ class UNET(nn.Module):
                  device: device = "cuda",
                  time_steps: int = 1000):
         super().__init__()
+        if Channels is None:
+            Channels = [64, 128, 256, 512, 512, 384]
+        if Attentions is None:
+            Attentions = [False, True, False, False, False, True]
+        if Upscales is None:
+            Upscales = [False, False, False, True, True, True]
+
         self.num_layers = len(Channels)
         self.shallow_conv = nn.Conv2d(input_channels, Channels[0], kernel_size=3, padding=1)
         out_channels = (Channels[-1] // 2) + Channels[0]
