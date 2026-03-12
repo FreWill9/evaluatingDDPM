@@ -10,6 +10,7 @@ class CelebAGray32(Dataset):
     def __init__(self, root, img_size):
         self.paths = sorted(Path(root).glob("*.jpg"))
         self.img_size = img_size
+
         if not self.paths:
             raise FileNotFoundError(f"No jpg images found in {root}")
 
