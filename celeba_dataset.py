@@ -3,15 +3,16 @@ from PIL import Image
 from torch.utils.data import Dataset
 from torchvision import transforms
 
-class CelebAGray32(Dataset):
+class CelebAGray(Dataset):
     """Loads CelebA jpg images, converting to img_size × img_size grayscale tensors."""
 
     def __init__(self, root, img_size):
         self.paths = sorted(Path(root).glob("*.jpg"))
         self.img_size = img_size
+
         if not self.paths:
             raise FileNotFoundError(f"No jpg images found in {root}")
-
+        
         self.transform = transforms.Compose([
             transforms.Resize((img_size, img_size)),      # downsize
             transforms.Grayscale(num_output_channels=1),  # single-channel grey
@@ -25,3 +26,4 @@ class CelebAGray32(Dataset):
     def __getitem__(self, idx):
         with Image.open(self.paths[idx]) as img:
             return self.transform(img.convert("RGB"))
+        
