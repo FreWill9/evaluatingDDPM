@@ -4,7 +4,7 @@ import torch
 import os
 import random
 
-data_dir = r"D:/data/img_align_celeba"
+data_dir = r"/Users/frederikwillger/Downloads/img_align_celeba"
 save_dir = "data"
 img_size = 32
 subset_size = 5000
@@ -13,6 +13,7 @@ os.makedirs(save_dir, exist_ok=True)
 
 full_dataset = CelebAGray32(data_dir, img_size=img_size)
 
+random.seed(0)
 indices = list(range(len(full_dataset)))
 random.seed(67)
 random.shuffle(indices)
