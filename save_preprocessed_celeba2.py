@@ -6,8 +6,8 @@ import random
 
 data_dir = r"/Users/frederikwillger/Downloads/img_align_celeba"
 save_dir = "data"
-img_size = 32
-subset_size = 5000
+img_size = 64
+subset_size = 20_000
 
 os.makedirs(save_dir, exist_ok=True)
 
@@ -26,5 +26,5 @@ print(all_tensors.shape)
 print(all_tensors.dtype)
 
 # Save to disk
-torch.save(all_tensors, f"{save_dir}/celeba_gray32_{subset_size}.pt")
+torch.save(all_tensors, f"{save_dir}/celeba_gray{img_size}_{subset_size}.pt")
 print(f"Saved preprocessed CelebA subset to disk")
