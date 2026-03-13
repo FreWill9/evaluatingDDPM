@@ -1,0 +1,43 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# Virtual environments
+venv/
+.venv/
+env/
+
+# PyCharm
+.idea/
+
+# Distribution / build
+build/
+dist/
+*.egg-info/
+
+# Testing / coverage
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Local project files
+/experiments.py
+/outdir/image_0.png
+/outdir/image_1.png
+/outdir/image_2.png
+/outdir/image_3.png
+/outdir/image_4.png
+/outdir/image_5.png
+/outdir/image_6.png
+/outdir/image_7.png
+/outdir/image_8.png
+/outdir/image_9.png

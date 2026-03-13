@@ -1,15 +1,15 @@
 import torch
 import torch.nn as nn
-from torch.utils.data import DataLoader, Subset, TensorDataset
+from torch.utils.data import DataLoader, TensorDataset
 import torch.optim as optim
 from timm.utils import ModelEmaV3
 from models.unet import UNET
 from utils import DDPM_Scheduler
-from einops import rearrange
 from tqdm import tqdm
-import matplotlib.pyplot as plt
 from typing import List
-from celeba_dataset import CelebAGray32
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
 
 
 def train(pt_path: str,
@@ -17,12 +17,12 @@ def train(pt_path: str,
           batch_size: int = 128,
           num_epochs: int = 15,
           num_timesteps: int = 1_000,
-          subset_size: int = 5_000,
           lr: float = 2e-5,
-          ema_decay: float = 0.9999,
-          checkpoint_path: str = None):
+          ema_decay: float = 0.999,
+          checkpoint_path: str = 'checkpoints/ddpm_checkpoint1'):
     # use GPU if available
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    print(f"Using device: {device}")
 
     # load dataset
     all_tensors = torch.load(pt_path, weights_only=True)
@@ -33,12 +33,13 @@ def train(pt_path: str,
         batch_size=batch_size,
         shuffle=True,
         drop_last=True,
-        num_workers=4,
+        num_workers=1,
         pin_memory=True,
     )
 
     # choose model
     model = UNET(device=device)
+    model = model.to(device)
 
     optimizer = optim.Adam(model.parameters(), lr=lr)
     criterion = nn.MSELoss(reduction='mean')
@@ -65,8 +66,8 @@ def train(pt_path: str,
             e = torch.randn_like(x, requires_grad=False)
 
             # Create noisy image x_t
-            a = scheduler.alpha[t].view(batch_size, 1, 1, 1).to(device)
-            x_t = (torch.sqrt(a) * x) + (torch.sqrt(1 - a) * e)
+            a_bar = scheduler.alpha_bar.to(device)[t].view(bs, 1, 1, 1)
+            x_t = torch.sqrt(a_bar) * x + torch.sqrt(1 - a_bar) * e
 
             # Feed noisy image to model
             output = model(x_t, t)
@@ -92,58 +93,88 @@ def train(pt_path: str,
 
 def sample(checkpoint_path: str = None,
            num_timesteps: int = 1_000,
-           ema_decay: float = 0.9999):
+           ema_decay: float = 0.999,
+           img_size: int = 32):
+
     # use GPU if available
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     checkpoint = torch.load(checkpoint_path)
-    model = UNET(device=device)
+
+    model = UNET(device=device).to(device)
     model.load_state_dict(checkpoint['weights'])
+
     ema = ModelEmaV3(model, decay=ema_decay)
     ema.load_state_dict(checkpoint['ema'])
-    scheduler = DDPM_Scheduler(num_timesteps=num_timesteps)
+    model.eval()
+
+    scheduler = DDPM_Scheduler(num_timesteps=num_timesteps).to(device)
+
     times = [0, 15, 50, 100, 200, 300, 400, 550, 700, 999]
-    images = []
 
     with torch.no_grad():
-        model = ema.module.eval()
         for i in range(10):
-            z = torch.randn(1, 1, 32, 32)
-            for t in reversed(range(1, num_timesteps)):
-                t = [t]
-                temp = (scheduler.beta[t] / (
-                        (torch.sqrt(1 - scheduler.alpha[t])) * (torch.sqrt(1 - scheduler.beta[t]))))
-                z = (1 / (torch.sqrt(1 - scheduler.beta[t]))) * z - (temp * model(z.to(device), t).cpu())
-                if t[0] in times:
-                    images.append(z)
-                e = torch.randn(1, 1, 32, 32)
-                z = z + (e * torch.sqrt(scheduler.beta[t]))
-            temp = scheduler.beta[0] / ((torch.sqrt(1 - scheduler.alpha[0])) * (torch.sqrt(1 - scheduler.beta[0])))
-            x = (1 / (torch.sqrt(1 - scheduler.beta[0]))) * z - (temp * model(z.to(device), [0]).cpu())
-
-            images.append(x)
-            x = rearrange(x.squeeze(0), 'c h w -> h w c').detach()
-            x = x.numpy()
-            plt.imshow(x)
-            plt.show()
-            display_reverse(images)
+            z = torch.randn(1, 1, img_size, img_size).to(device)
             images = []
 
+            for t in reversed(range(num_timesteps)):
+                t_tensor = torch.full((1,), t, device=device, dtype=torch.long)
 
-def display_reverse(images: List):
-    fig, axes = plt.subplots(1, 10, figsize=(10, 1))
-    for i, ax in enumerate(axes.flat):
-        x = images[i].squeeze(0)
-        x = rearrange(x, 'c h w -> h w c')
-        x = x.numpy()
-        ax.imshow(x)
-        ax.axis('off')
-    plt.show()
+                beta_t = scheduler.beta[t]
+                alpha_t = scheduler.alpha[t]
+                alpha_bar_t = scheduler.alpha_bar[t]
+
+                eps_theta = model(z, t_tensor)
+
+                mean = (1.0 / torch.sqrt(alpha_t)) * (
+                        z - ((1.0 - alpha_t) / torch.sqrt(1.0 - alpha_bar_t)) * eps_theta
+                )
+
+                if t > 0:
+                    noise = torch.randn_like(z)
+                    z = mean + torch.sqrt(beta_t) * noise
+                else:
+                    z = mean
+
+                if t in times:
+                    images.append(z.detach().cpu())
+
+            x = z.detach().cpu()
+
+            x_vis = x.detach().cpu().clamp(-1, 1)
+            x_vis = (x_vis + 1) / 2
+            img = x_vis.squeeze().numpy()
+
+            plt.imshow(img, cmap="gray", vmin=0, vmax=1)
+            plt.axis("off")
+            plt.savefig(f"outdir/image_{i}.png", bbox_inches="tight", pad_inches=0)
+            plt.close()
+            print(f"Saved image {i} successfully!")
+
+
+def display_reverse(images: List, filename: str):
+    n = min(len(images), 10)
+    fig, axes = plt.subplots(1, n, figsize=(n, 1))
+
+    if n == 1:
+        axes = [axes]
+
+    for i, ax in enumerate(axes):
+        x = images[i].squeeze(0).detach().cpu().clamp(-1, 1)
+        x = (x + 1) / 2
+        x = x.squeeze().numpy()
+        ax.imshow(x, cmap="gray", vmin=0, vmax=1)
+        ax.axis("off")
+
+    plt.tight_layout()
+    plt.savefig(filename, bbox_inches="tight", pad_inches=0)
+    plt.close(fig)
 
 
 def main():
-    # train(pt_path=r"data/celeba_gray32_5000.pt", img_size=32, batch_size=128, num_epochs=15, num_timesteps=1_000)
-    sample('checkpoints/ddpm_checkpoint1')
+    train(pt_path=r"data/celeba_gray32_5000.pt",
+          img_size=32, batch_size=128, num_epochs=15, num_timesteps=1_000, lr=1e-4)
+    sample('checkpoints/ddpm_checkpoint1', img_size=32)
 
 
 if __name__ == '__main__':
