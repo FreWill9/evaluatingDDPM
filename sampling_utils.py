@@ -6,6 +6,7 @@ from models.ho_unet import UNet as HoUNet
 from models.simple_unet import SimpleUnet
 from models.unet import UNET
 
+
 @torch.no_grad()
 def sample(model, shape, num_timesteps, schedule, device):
     """Generate image from pure noise."""
@@ -14,6 +15,7 @@ def sample(model, shape, num_timesteps, schedule, device):
         t = torch.full((shape[0],), i, device=device, dtype=torch.long)
         img = reverse_diffusion_step(model, img, t, i, schedule)
     return img
+
 
 def plot_images(model, schedule, device, img_size, num_timesteps, num_samples=1):
     """Generate and plot a grid of images."""
@@ -26,6 +28,7 @@ def plot_images(model, schedule, device, img_size, num_timesteps, num_samples=1)
     plt.imshow(grid.permute(1, 2, 0).squeeze(), cmap="gray")
     plt.axis("off")
     plt.show()
+
 
 if __name__ == "__main__":
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")

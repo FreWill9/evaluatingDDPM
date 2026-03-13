@@ -30,14 +30,10 @@ htmlcov/
 Thumbs.db
 
 # Local project files
-/experiments.py
-/outdir/image_0.png
-/outdir/image_1.png
-/outdir/image_2.png
-/outdir/image_3.png
-/outdir/image_4.png
-/outdir/image_5.png
-/outdir/image_6.png
-/outdir/image_7.png
-/outdir/image_8.png
-/outdir/image_9.png
+experiments.py
+main.err
+main.out
+outdir/
+data/
+evaluatingDDPM/
+checkpoints/

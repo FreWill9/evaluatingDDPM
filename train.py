@@ -10,6 +10,7 @@ from models.ho_unet import UNet as HoUNet
 from models.simple_unet import SimpleUnet
 from models.unet import UNET
 
+
 def train(data_path, checkpoint_name, batch_size, num_epochs, num_timesteps):
     
     tensors = torch.load(data_path)
