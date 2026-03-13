@@ -4,7 +4,7 @@ import torch
 import os
 import random
 
-data_dir = r"/Users/frederikwillger/Downloads/img_align_celeba"
+data_dir = r".../img_align_celeba"
 save_dir = "data"
 img_size = 32
 subset_size = 5000

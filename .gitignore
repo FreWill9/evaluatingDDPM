@@ -36,4 +36,5 @@ main.out
 outdir/
 data/
 evaluatingDDPM/
+outdir/
 checkpoints/

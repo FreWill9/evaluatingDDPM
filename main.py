@@ -101,7 +101,7 @@ def sample(checkpoint_path: str = None,
            num_timesteps: int = 1_000,
            ema_decay: float = 0.999,
            img_size: int = 32):
-
+    
     # use GPU if available
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -133,7 +133,7 @@ def sample(checkpoint_path: str = None,
                 eps_theta = model(z, t_tensor)
 
                 mean = (1.0 / torch.sqrt(alpha_t)) * (
-                        z - ((1.0 - alpha_t) / torch.sqrt(1.0 - alpha_bar_t)) * eps_theta
+                    z - ((1.0 - alpha_t) / torch.sqrt(1.0 - alpha_bar_t)) * eps_theta
                 )
 
                 if t > 0:

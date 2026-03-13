@@ -6,7 +6,6 @@ def linear_beta_schedule(num_timesteps, beta_start=0.0001, beta_end=0.02):
     """Linear variance schedule from DDPM paper."""
     return torch.linspace(beta_start, beta_end, num_timesteps)
 
-
 def precompute_schedule(betas):
     """Precompute all closed-form quantities needed for training & sampling."""
     alphas = 1.0 - betas
@@ -23,13 +22,11 @@ def precompute_schedule(betas):
         "posterior_variance": betas * (1.0 - alpha_cumprod_prev) / (1.0 - alpha_cumprod),
     }
 
-
 def extract(schedule_tensor, t, x_shape):
     """Gather the precomputed schedule value at timestep t and reshape accordingly."""
     batch_size = t.shape[0]
     out = schedule_tensor.gather(-1, t)
     return out.reshape(batch_size, *((1,) * (len(x_shape) - 1)))
-
 
 def forward_diffusion(x_0, t, schedule, noise=None):
     """Returns the noised image x_t and the noise that was added."""
@@ -41,7 +38,6 @@ def forward_diffusion(x_0, t, schedule, noise=None):
 
     x_t = sqrt_alpha_cumprod_t * x_0 + sqrt_one_minus_alpha_cumprod_t * noise
     return x_t, noise
-
 
 @torch.no_grad()
 def reverse_diffusion_step(model, x_t, t, t_index, schedule):
