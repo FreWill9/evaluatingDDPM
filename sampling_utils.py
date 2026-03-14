@@ -38,8 +38,8 @@ def sample_and_save(model, schedule, device, img_size, outdir: str, num_timestep
     plt.figure(figsize=(8, 8))
     plt.imshow(grid.permute(1, 2, 0).squeeze(), cmap="gray")
     plt.axis("off")
-    plt.savefig(f"{outdir}/image.svg", format="svg", bbox_inches='tight')
-    print(f"Saved image successfully to '{outdir}/image.svg'!")
+    plt.savefig(f"{outdir}/grid.svg", format="svg", bbox_inches='tight')
+    print(f"Saved image successfully to '{outdir}/grid.svg'!")
     plt.close()
 
 if __name__ == "__main__":
