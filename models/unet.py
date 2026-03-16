@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 
 
 class ResBlock(nn.Module):
-    def __init__(self, dropout_prob: float, C: int, num_groups: int):
+    def __init__(self, dropout_prob: float, C: int, num_groups: int, emb_dim: int):
         super().__init__()
         self.groupNorm1 = nn.GroupNorm(num_groups=num_groups, num_channels=C)
         self.groupNorm2 = nn.GroupNorm(num_groups=num_groups, num_channels=C)
@@ -17,18 +17,23 @@ class ResBlock(nn.Module):
         self.conv2 = nn.Conv2d(C, C, kernel_size=3, stride=1, padding=1)
         self.relu = nn.ReLU(inplace=True)
         self.dropout = nn.Dropout(p=dropout_prob, inplace=True)
+        self.emb_proj = nn.Conv2d(emb_dim, C, kernel_size=1)
 
     def forward(self, x, embeddings):
-        # x = x + t, x.shape = (B, C, H, W)
-        x = x + embeddings[:, :x.shape[1], :, :]
+        residual = x
 
-        # r = Conv2(Relu(GN2(dropOut(Conv1(Relu(GN1(x)))))))
-        r1 = self.conv1(self.relu(self.groupNorm1(x)))
-        r2 = self.dropout(r1)
-        r3 = self.conv2(self.relu(self.groupNorm2(r2)))
+        h = self.groupNorm1(x)
+        h = self.relu(h)
+        h = self.conv1(h)
 
-        # Add residual
-        return r3 + x
+        h = h + self.emb_proj(embeddings)
+
+        h = self.groupNorm2(h)
+        h = self.relu(h)
+        h = self.dropout(h)
+        h = self.conv2(h)
+
+        return h + residual
 
 
 class Attention(nn.Module):
@@ -37,7 +42,7 @@ class Attention(nn.Module):
         self.proj1 = nn.Linear(C, C * 3)
         self.proj2 = nn.Linear(C, C)
         self.num_heads = num_heads
-        self.dropout_prob = dropout_prob
+        self.dropout_prob = dropout_prob if self.training else 0.0
 
     def forward(self, x):
         h, w = x.shape[2:]
@@ -60,8 +65,8 @@ class UnetLayer(nn.Module):
                  num_heads: int,
                  C: int):
         super().__init__()
-        self.ResBlock1 = ResBlock(C=C, num_groups=num_groups, dropout_prob=dropout_prob)
-        self.ResBlock2 = ResBlock(C=C, num_groups=num_groups, dropout_prob=dropout_prob)
+        self.ResBlock1 = ResBlock(C=C, num_groups=num_groups, dropout_prob=dropout_prob, emb_dim=512)   # emb_dim = max(channels)
+        self.ResBlock2 = ResBlock(C=C, num_groups=num_groups, dropout_prob=dropout_prob, emb_dim=512)   # ^
         if upscale:
             self.conv = nn.ConvTranspose2d(C, C // 2, kernel_size=4, stride=2, padding=1)
         else:
