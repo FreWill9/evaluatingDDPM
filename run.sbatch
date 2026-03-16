@@ -11,4 +11,6 @@ conda activate eml
 
 which python
 python --version
-python main.py
+
+python train.py
+python sampling_utils.py

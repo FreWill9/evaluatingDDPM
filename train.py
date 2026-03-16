@@ -19,7 +19,7 @@ def train(data_path, checkpoint_name, batch_size, num_epochs, num_timesteps):
         batch_size=batch_size,
         shuffle=True,
         drop_last=True,
-        num_workers=2,
+        num_workers=1,
         pin_memory=torch.cuda.is_available(),
     )
 
@@ -79,16 +79,16 @@ def train(data_path, checkpoint_name, batch_size, num_epochs, num_timesteps):
 
 
 if __name__ == "__main__":
-    data_path = "data/celeba_gray32_5000.pt"
+    data_path = "data/celeba_gray64_20000.pt"
     
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     # Select model architecture
-    model = SimpleUnet().to(device)
+    model = UNET().to(device)
 
-    checkpoint_name = "latest_simple_unet32"
-    batch_size = 128
-    num_epochs = 3
+    checkpoint_name = "ddpm_checkpoint_gpu64"
+    batch_size = 32
+    num_epochs = 10
     num_timesteps = 1000
     learn_rate = 0.0002
 
