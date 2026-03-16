@@ -24,7 +24,7 @@ def save_preprocessed_real_images(data_path, save_dir):
 def save_images(model, schedule, device, img_size, num_timesteps, num_samples, save_dir="outputs"):
     """Generate and save a batch of images as PNGs."""
     os.makedirs(save_dir, exist_ok=True)
-    samples = sample(model, (num_samples, 1, img_size, img_size), num_timesteps, schedule, device)
+    samples = sample(model, (num_samples, 1, img_size, img_size), schedule, device, num_timesteps)
     # Undo normalization
     samples = (samples + 1) / 2
     samples = samples.clamp(0, 1)
