@@ -4,13 +4,13 @@ import torch.optim as optim
 from torch.utils.data import DataLoader, TensorDataset
 from tqdm import tqdm
 import os
-from diffusion_utils import linear_beta_schedule, precompute_schedule, forward_diffusion
+from diffusion_utils import linear_beta_schedule, cosine_beta_schedule, precompute_schedule, forward_diffusion
 
 from models.ho_unet import UNet as HoUNet
 from models.simple_unet import SimpleUnet
 from models.unet import UNET
 
-def train(data_path, checkpoint_name, batch_size, num_epochs, num_timesteps):
+def train(data_path,  checkpoint_name, batch_size, num_epochs, num_timesteps, schedule_type="linear"):
     
     tensors = torch.load(data_path)
     dataset = TensorDataset(tensors)
@@ -26,7 +26,12 @@ def train(data_path, checkpoint_name, batch_size, num_epochs, num_timesteps):
     optimizer = optim.Adam(model.parameters(), lr=2e-4)
     criterion = nn.MSELoss()
 
-    betas = linear_beta_schedule(1000).to(device)
+    if schedule_type == "linear":
+        betas = linear_beta_schedule(1000).to(device)
+    elif schedule_type == "cosine":
+        betas = cosine_beta_schedule(1000).to(device)
+    else:
+        raise ValueError(f"Unknown schedule type: {schedule_type}")
     schedule = precompute_schedule(betas)
 
     # Resume from checkpoint if available
@@ -92,4 +97,4 @@ if __name__ == "__main__":
     num_timesteps = 1000
     learn_rate = 0.0002
 
-    train(data_path, checkpoint_name, batch_size, num_epochs, num_timesteps)
+    train(data_path, checkpoint_name, batch_size, num_epochs, num_timesteps, schedule_type="linear")

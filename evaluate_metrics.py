@@ -4,7 +4,7 @@ from sklearn.metrics import pairwise_distances
 import torch
 import torchvision
 from torch_fidelity import calculate_metrics
-from diffusion_utils import linear_beta_schedule, precompute_schedule
+from diffusion_utils import linear_beta_schedule, cosine_beta_schedule, precompute_schedule
 from sampling_utils import sample
 from models.ho_unet import UNet as HoUNet
 from models.simple_unet import SimpleUnet
@@ -84,6 +84,11 @@ if __name__ == "__main__":
     # Select model architecture
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = SimpleUnet().to(device)
+
+    # Select beta schedule and precompute schedule
+    num_timesteps = 1000
+    betas = cosine_beta_schedule(num_timesteps).to(device)
+    schedule = precompute_schedule(betas)
 
     # Set path to preprocessed dataset and model checkpoint
     data_name = "digits_gray16_1797"

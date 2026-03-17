@@ -2,7 +2,7 @@ from matplotlib import pyplot as plt
 import torch
 import torchvision
 from tqdm import tqdm
-from diffusion_utils import linear_beta_schedule, precompute_schedule, reverse_diffusion_step
+from diffusion_utils import linear_beta_schedule, cosine_beta_schedule, precompute_schedule, reverse_diffusion_step
 from models.ho_unet import UNet as HoUNet
 from models.simple_unet import SimpleUnet
 from models.unet import UNET
