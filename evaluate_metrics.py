@@ -1,3 +1,6 @@
+import numpy as np
+from PIL import Image
+from sklearn.metrics import pairwise_distances
 import torch
 import torchvision
 from torch_fidelity import calculate_metrics
@@ -30,6 +33,50 @@ def save_images(model, schedule, device, img_size, num_timesteps, num_samples, s
     samples = samples.clamp(0, 1)
     for i in range(num_samples):
         torchvision.utils.save_image(samples[i], os.path.join(save_dir, f"{i:04d}.png"))
+
+
+def compute_nn_distance(real_dir, gen_dir, subsample=None):
+    """
+    Computes nearest-neighbor pixel distances between generated and real images.
+    Prints gen->real and real->real distances and their ratio (gen->real / real->real).
+
+    Interpretation:
+    - If ratio ≈ 1 -> good: Generated images are as close to real images as real images are to each other.
+    - If ratio << 1 -> bad: Generated images are closer to real images than real images are to each other (potential memorizing).
+    - If ratio >> 1 -> bad: Generated images are much farther from real images than real images are from each other (bad generation quality).
+    """
+    def load_images_flat(directory):
+        paths = sorted([os.path.join(directory, f) for f in os.listdir(directory) if f.endswith(".png")])
+        imgs = []
+        for p in paths:
+            img = np.array(Image.open(p).convert("L"), dtype=np.float32) / 255.0
+            imgs.append(img.flatten())
+        return np.stack(imgs)
+
+    real = load_images_flat(real_dir)
+    gen  = load_images_flat(gen_dir)
+
+    # Optional subsampling for faster distance computation
+    if subsample is not None:
+        real_idx = np.random.choice(len(real), size=min(subsample, len(real)), replace=False)
+        gen_idx  = np.random.choice(len(gen),  size=min(subsample, len(gen)),  replace=False)
+        real = real[real_idx]
+        gen  = gen[gen_idx]
+        print(f"  Subsampled to {len(gen)} generated / {len(real)} real images")
+
+    print("\nComputing nearest-neighbor pixel distances...")
+    gen_real_dists = pairwise_distances(gen, real, metric="euclidean")
+    nn_gen_real = gen_real_dists.min(axis=1)
+
+    real_real_dists = pairwise_distances(real, real, metric="euclidean")
+    np.fill_diagonal(real_real_dists, np.inf)
+    nn_real_real = real_real_dists.min(axis=1)
+
+    print(f"  Gen->Real  NN distance (mean): {nn_gen_real.mean():.4f}, median: {np.median(nn_gen_real):.4f}")
+    print(f"  Real->Real NN distance (mean): {nn_real_real.mean():.4f}, median: {np.median(nn_real_real):.4f}")
+    print()
+    ratio = nn_gen_real.mean() / nn_real_real.mean()
+    print(f"  Ratio (gen->real / real->real): {ratio:.4f}")
 
 
 if __name__ == "__main__":
@@ -79,6 +126,9 @@ if __name__ == "__main__":
     
     print(f"FID: {metrics['frechet_inception_distance']:.4f}")
     print(f"Inception Score: {metrics['inception_score_mean']:.4f} ± {metrics['inception_score_std']:.4f}")
+
+    # Compute nearest-neighbor pixel distances
+    compute_nn_distance(save_path_real, save_path_generated)
 
     """
     Findings:
