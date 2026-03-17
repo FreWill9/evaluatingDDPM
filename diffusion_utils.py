@@ -39,10 +39,11 @@ def cosine_beta_schedule(num_timesteps):
     The +0.008 offset prevents beta from being too small near t=0, which would make the first few
     forward steps almost noiseless and waste network capacity.
     """
-    return betas_for_alpha_bar(
-            num_timesteps,
-            lambda t: math.cos((t + 0.008) / 1.008 * math.pi / 2) ** 2,
-        )
+    betas = betas_for_alpha_bar(
+        num_timesteps,
+        lambda t: math.cos((t + 0.008) / 1.008 * math.pi / 2) ** 2,
+    )
+    return torch.from_numpy(betas).float()
 
 
 def precompute_schedule(betas):
