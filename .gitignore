@@ -38,3 +38,4 @@ data/
 evaluatingDDPM/
 outdir/
 checkpoints/
+loss_plots/

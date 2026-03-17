@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import matplotlib.pyplot as plt
 
 
 class DDPM_Scheduler(nn.Module):
@@ -15,3 +16,23 @@ class DDPM_Scheduler(nn.Module):
 
     def forward(self, t):
         return self.beta[t], self.alpha[t], self.alpha_bar[t]
+
+
+def plot_loss(checkpoint_path: str, outdir: str = "loss_plots"):
+    checkpoint = torch.load(checkpoint_path)
+    loss_history = checkpoint.get("loss_history", [])
+    print(loss_history)
+    plt.plot(loss_history)
+    plt.xlabel("Epoch")
+    plt.ylabel("Loss")
+    plt.savefig(f"{outdir}/loss-UNET_gpu64.svg", format="svg")
+    plt.close()
+    print(f"Saved image successfully to '{outdir}/loss-UNET_gpu64.svg'!")
+
+
+def main():
+    plot_loss("checkpoints/UNET_gpu64.pt")
+
+
+if __name__ == "__main__":
+    main()
