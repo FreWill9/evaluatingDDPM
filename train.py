@@ -5,7 +5,6 @@ from torch.utils.data import DataLoader, TensorDataset
 from tqdm import tqdm
 import os
 from diffusion_utils import linear_beta_schedule, cosine_beta_schedule, precompute_schedule, forward_diffusion
-
 from models.ho_unet import UNet as HoUNet
 from models.simple_unet import SimpleUnet
 from models.unet import UNET
@@ -25,6 +24,11 @@ def train(model, data_path,  checkpoint_name, batch_size, num_epochs, num_timest
     )
 
     optimizer = optim.Adam(model.parameters(), lr=learning_rate)
+
+    # This adds learning rate decay. Computes lr * gamma, every step_size epochs. This halves the lr after around 150 epochs.
+    # For stronger decay choose smaller gamma, for no lr-decay choose gamma = 1.
+    lr_scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=50, gamma=0.8)
+
     criterion = nn.MSELoss()
 
     if schedule_type == "linear":
@@ -46,6 +50,10 @@ def train(model, data_path,  checkpoint_name, batch_size, num_epochs, num_timest
         ckpt = torch.load(checkpoint_path, map_location=device)
         model.load_state_dict(ckpt["model_state_dict"])
         optimizer.load_state_dict(ckpt["optimizer_state_dict"])
+
+        if "scheduler_state_dict" in ckpt:
+            lr_scheduler.load_state_dict(ckpt["scheduler_state_dict"])
+
         start_epoch = ckpt["epoch"] + 1
         loss_history = ckpt.get("loss_history", [])
         print(f"  → Resuming at epoch {start_epoch}")
@@ -72,6 +80,8 @@ def train(model, data_path,  checkpoint_name, batch_size, num_epochs, num_timest
             epoch_loss += loss.item()
 
         avg_loss = epoch_loss / len(train_loader)
+        lr_scheduler.step()
+
         tqdm.write(f"Epoch [{epoch + 1}/{num_epochs}]  Loss: {avg_loss:.6f}")
         loss_history.append(float(avg_loss))
 
@@ -80,6 +90,7 @@ def train(model, data_path,  checkpoint_name, batch_size, num_epochs, num_timest
             "epoch": epoch,
             "model_state_dict": model.state_dict(),
             "optimizer_state_dict": optimizer.state_dict(),
+            "scheduler_state_dict": lr_scheduler.state_dict(),
             "loss": avg_loss,
             "loss_history": loss_history,
             "num_timesteps": num_timesteps,
@@ -101,7 +112,7 @@ if __name__ == "__main__":
     batch_size = 32
     num_epochs = 150
     num_timesteps = 1000
-    learn_rate = 0.0001
+    initial_learn_rate = 0.0002
 
     train(model, data_path, checkpoint_name, batch_size, num_epochs, num_timesteps, 
-          learn_rate, schedule_type="linear")
+          initial_learn_rate, schedule_type="linear")
