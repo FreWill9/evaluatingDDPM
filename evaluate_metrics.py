@@ -4,7 +4,7 @@ from sklearn.metrics import pairwise_distances
 import torch
 import torchvision
 from torch_fidelity import calculate_metrics
-from diffusion_utils import linear_beta_schedule, precompute_schedule
+from diffusion_utils import linear_beta_schedule, cosine_beta_schedule, precompute_schedule
 from sampling_utils import sample
 from models.ho_unet import UNet as HoUNet
 from models.simple_unet import SimpleUnet
@@ -85,6 +85,11 @@ if __name__ == "__main__":
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = SimpleUnet().to(device)
 
+    # Select beta schedule and precompute schedule
+    num_timesteps = 1000
+    betas = cosine_beta_schedule(num_timesteps).to(device)
+    schedule = precompute_schedule(betas)
+
     # Set path to preprocessed dataset and model checkpoint
     data_name = "digits_gray16_1797"
     data_path = f"data/{data_name}.pt"
@@ -95,6 +100,10 @@ if __name__ == "__main__":
     # Set paths for real and generated images for evaluation
     save_path_real = f"D:/data/evaluation/real_images/{data_name}"
     save_path_generated = f"D:/data/evaluation/generated_images/{checkpoint_name}"
+
+    # Set image size and number of samples to generate for evaluation
+    img_size = 16
+    num_samples = len(os.listdir(save_path_real)) # match number of real images
 
 
     # Step 1: Save preprocessed real images as PNGs for metric calculation
@@ -113,12 +122,6 @@ if __name__ == "__main__":
     model.load_state_dict(ckpt["model_state_dict"])
     model.eval()
 
-    img_size = 16
-    num_timesteps = 1000
-    betas = linear_beta_schedule(num_timesteps).to(device)
-    schedule = precompute_schedule(betas)
-
-    num_samples = len(os.listdir(save_path_real))  # Match number of real images
     if not os.path.exists(save_path_generated) or len(os.listdir(save_path_generated)) == 0:
         print("Generating and saving generated images for evaluation...")
         save_images(model, schedule, device, img_size, num_timesteps=num_timesteps, num_samples=num_samples, save_dir=save_path_generated)
@@ -150,8 +153,9 @@ if __name__ == "__main__":
         - For ho_unet32_celeba5000 (generated): TODO
     - For digits_16_1797 (real): IS (real) = 1.7409 ± 0.0336
         - Simple Unet with reduced architecture: down_channels = (32, 64, 128), up_channels = (128, 64, 32)
-                - After 100 epochs: 
+                - After 100 epochs:
                     - IS: 1.7409 ± 0.0336, FID: 20.8106
+                    - Cosine schedule: FID: 111.3080 (maybe some mistake in cosine implementation or during training?)
                 - After 5000 epochs:
                     - IS: 1.7409 ± 0.0336, FID: 6.0066
                     - Nearest-neighbor pixel distances:
