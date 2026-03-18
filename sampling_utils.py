@@ -39,7 +39,7 @@ def sample_and_save(model, schedule, device, img_size, outdir: str, num_timestep
     plt.imshow(grid.permute(1, 2, 0).squeeze(), cmap="gray")
     plt.axis("off")
     plt.savefig(f"{outdir}/grid.svg", format="svg", bbox_inches='tight')
-    print(f"Saved image successfully to '{outdir}/grid.svg'!")
+    print(f"Saved sampled images successfully to '{outdir}/grid.svg'!")
     plt.close()
 
 if __name__ == "__main__":
@@ -47,7 +47,7 @@ if __name__ == "__main__":
 
     # Select model and load checkpoint
     model = UNET().to(device)
-    checkpoint_path = "checkpoints/ddpm_checkpoint_gpu64.pt"
+    checkpoint_path = "checkpoints/UNET_gpu64.pt"
     ckpt = torch.load(checkpoint_path, map_location=device)
     model.load_state_dict(ckpt["model_state_dict"])
     model.eval()
@@ -56,4 +56,4 @@ if __name__ == "__main__":
     betas = linear_beta_schedule(1000).to(device)
     schedule = precompute_schedule(betas)
 
-    sample_and_save(model, schedule, device, img_size, "outdir", num_samples=12)
+    sample_and_save(model, schedule, device, img_size, "outdir", num_samples=24)

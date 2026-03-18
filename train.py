@@ -5,12 +5,13 @@ from torch.utils.data import DataLoader, TensorDataset
 from tqdm import tqdm
 import os
 from diffusion_utils import linear_beta_schedule, precompute_schedule, forward_diffusion
+from utils import plot_loss
 
 from models.ho_unet import UNet as HoUNet
 from models.simple_unet import SimpleUnet
 from models.unet import UNET
 
-def train(data_path, checkpoint_name, batch_size, num_epochs, num_timesteps):
+def train(data_path, checkpoint_name, batch_size, num_epochs, num_timesteps, learning_rate):
     
     tensors = torch.load(data_path)
     dataset = TensorDataset(tensors)
@@ -23,7 +24,7 @@ def train(data_path, checkpoint_name, batch_size, num_epochs, num_timesteps):
         pin_memory=torch.cuda.is_available(),
     )
 
-    optimizer = optim.Adam(model.parameters(), lr=2e-4)
+    optimizer = optim.Adam(model.parameters(), lr=learning_rate)
     criterion = nn.MSELoss()
 
     betas = linear_beta_schedule(1000).to(device)
@@ -33,6 +34,7 @@ def train(data_path, checkpoint_name, batch_size, num_epochs, num_timesteps):
     os.makedirs("checkpoints", exist_ok=True)
     checkpoint_path = os.path.join("checkpoints", f"{checkpoint_name}.pt")
     start_epoch = 0
+    loss_history = []
 
     if os.path.exists(checkpoint_path):
         print(f"Resuming from checkpoint: {checkpoint_path}")
@@ -40,6 +42,7 @@ def train(data_path, checkpoint_name, batch_size, num_epochs, num_timesteps):
         model.load_state_dict(ckpt["model_state_dict"])
         optimizer.load_state_dict(ckpt["optimizer_state_dict"])
         start_epoch = ckpt["epoch"] + 1
+        loss_history = ckpt.get("loss_history", [])
         print(f"  → Resuming at epoch {start_epoch}")
 
     # Training loop
@@ -65,6 +68,7 @@ def train(data_path, checkpoint_name, batch_size, num_epochs, num_timesteps):
 
         avg_loss = epoch_loss / len(train_loader)
         tqdm.write(f"Epoch [{epoch + 1}/{num_epochs}]  Loss: {avg_loss:.6f}")
+        loss_history.append(float(avg_loss))
 
         # Save checkpoint
         torch.save({
@@ -72,9 +76,11 @@ def train(data_path, checkpoint_name, batch_size, num_epochs, num_timesteps):
             "model_state_dict": model.state_dict(),
             "optimizer_state_dict": optimizer.state_dict(),
             "loss": avg_loss,
+            "loss_history": loss_history,
             "num_timesteps": num_timesteps,
         }, checkpoint_path)
         tqdm.write(f"Checkpoint saved to {checkpoint_path}")
+
     print("Training complete.")
 
 
@@ -86,10 +92,10 @@ if __name__ == "__main__":
     # Select model architecture
     model = UNET().to(device)
 
-    checkpoint_name = "ddpm_checkpoint_gpu64"
+    checkpoint_name = "UNET_gpu64"
     batch_size = 32
-    num_epochs = 10
+    num_epochs = 150
     num_timesteps = 1000
-    learn_rate = 0.0002
+    learn_rate = 0.0001
 
-    train(data_path, checkpoint_name, batch_size, num_epochs, num_timesteps)
+    train(data_path, checkpoint_name, batch_size, num_epochs, num_timesteps, learn_rate)

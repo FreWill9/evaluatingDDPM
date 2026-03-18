@@ -21,13 +21,12 @@ class DDPM_Scheduler(nn.Module):
 def plot_loss(checkpoint_path: str, outdir: str = "loss_plots"):
     checkpoint = torch.load(checkpoint_path)
     loss_history = checkpoint.get("loss_history", [])
-    print(loss_history)
     plt.plot(loss_history)
     plt.xlabel("Epoch")
     plt.ylabel("Loss")
     plt.savefig(f"{outdir}/loss-UNET_gpu64.svg", format="svg")
     plt.close()
-    print(f"Saved image successfully to '{outdir}/loss-UNET_gpu64.svg'!")
+    print(f"Saved loss plot successfully to '{outdir}/loss-UNET_gpu64.svg'!")
 
 
 def main():

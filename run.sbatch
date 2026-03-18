@@ -2,7 +2,7 @@
 #SBATCH --job-name=main
 #SBATCH --partition=exercise-gpu
 #SBATCH --gres=gpu:1
-#SBATCH --time=02:00:00
+#SBATCH --time=04:00:00
 #SBATCH --output=main.out
 #SBATCH --error=main.err
 
@@ -14,3 +14,4 @@ python --version
 
 python train.py
 python sampling_utils.py
+python utils.py
