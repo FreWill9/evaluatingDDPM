@@ -94,6 +94,7 @@ def train(model, data_path,  checkpoint_name, batch_size, num_epochs, num_timest
             "loss": avg_loss,
             "loss_history": loss_history,
             "num_timesteps": num_timesteps,
+            "schedule_type": schedule_type, # "cosine" or "linear"
         }, checkpoint_path)
         tqdm.write(f"Checkpoint saved to {checkpoint_path}")
 
