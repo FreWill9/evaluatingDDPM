@@ -53,6 +53,15 @@ if __name__ == "__main__":
     model.load_state_dict(ckpt["model_state_dict"])
     model.eval()
 
+    # Read schedule type from checkpoint and precompute values
+    schedule_type = ckpt["schedule_type"]
+    num_timesteps = ckpt["num_timesteps"]
+    if schedule_type == "linear":
+        betas = linear_beta_schedule(num_timesteps).to(device)
+    elif schedule_type == "cosine":
+        betas = cosine_beta_schedule(num_timesteps).to(device)
+    schedule = precompute_schedule(betas)
+
     img_size = 64
     betas = linear_beta_schedule(1000).to(device)
     schedule = precompute_schedule(betas)

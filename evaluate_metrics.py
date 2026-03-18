@@ -85,16 +85,11 @@ if __name__ == "__main__":
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = SimpleUnet().to(device)
 
-    # Select beta schedule and precompute schedule
-    num_timesteps = 1000
-    betas = cosine_beta_schedule(num_timesteps).to(device)
-    schedule = precompute_schedule(betas)
-
     # Set path to preprocessed dataset and model checkpoint
     data_name = "digits_gray16_1797"
     data_path = f"data/{data_name}.pt"
 
-    checkpoint_name = "simple_unet_5000eps_digits16"
+    checkpoint_name = "simple_unet_100eps_digits16_cosine"
     checkpoint_path = f"checkpoints/{checkpoint_name}.pt"
 
     # Set paths for real and generated images for evaluation
@@ -122,6 +117,16 @@ if __name__ == "__main__":
     model.load_state_dict(ckpt["model_state_dict"])
     model.eval()
 
+    # Read schedule type from checkpoint and precompute values
+    schedule_type = ckpt["schedule_type"]
+    num_timesteps = ckpt["num_timesteps"]
+    if schedule_type == "linear":
+        betas = linear_beta_schedule(num_timesteps).to(device)
+    elif schedule_type == "cosine":
+        betas = cosine_beta_schedule(num_timesteps).to(device)
+    schedule = precompute_schedule(betas)
+
+    # Generate and save images if not already done
     if not os.path.exists(save_path_generated) or len(os.listdir(save_path_generated)) == 0:
         print("Generating and saving generated images for evaluation...")
         save_images(model, schedule, device, img_size, num_timesteps=num_timesteps, num_samples=num_samples, save_dir=save_path_generated)
