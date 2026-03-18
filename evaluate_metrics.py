@@ -141,10 +141,12 @@ if __name__ == "__main__":
         input2=save_path_generated,
         fid=True,
         isc=True,
+        kid=True,
         cuda=torch.cuda.is_available(),
     )
     
     print(f"FID: {metrics['frechet_inception_distance']:.4f}")
+    print(f"KID: {metrics['kernel_inception_distance']:.4f}")
     print(f"Inception Score: {metrics['inception_score_mean']:.4f} ± {metrics['inception_score_std']:.4f}")
 
     # Compute nearest-neighbor pixel distances
@@ -160,7 +162,8 @@ if __name__ == "__main__":
         - Simple Unet with reduced architecture: down_channels = (32, 64, 128), up_channels = (128, 64, 32)
                 - After 100 epochs:
                     - IS: 1.7409 ± 0.0336, FID: 20.8106
-                    - Cosine schedule: FID: 111.3080 (maybe some mistake in cosine implementation or during training?)
+                    - Cosine schedule: FID: 16.3952
+                    - 
                 - After 5000 epochs:
                     - IS: 1.7409 ± 0.0336, FID: 6.0066
                     - Nearest-neighbor pixel distances:
