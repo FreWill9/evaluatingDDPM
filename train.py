@@ -4,7 +4,6 @@ import torch.optim as optim
 from torch.utils.data import DataLoader, TensorDataset
 from tqdm import tqdm
 import os
-from utils import plot_loss
 from diffusion_utils import linear_beta_schedule, cosine_beta_schedule, precompute_schedule, forward_diffusion
 
 from models.ho_unet import UNet as HoUNet

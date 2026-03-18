@@ -161,27 +161,3 @@ class UNET(nn.Module):
             layer = getattr(self, f'Layer{i + 1}')
             x = torch.concat((layer(x, embeddings)[0], residuals[self.num_layers - i - 1]), dim=1)
         return self.output_conv(self.relu(self.late_conv(x)))
-
-
-def main():
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-    x = torch.randn(64, 1, 32, 32, device=device)
-    t = torch.randint(0, 1000, (64,), device=device)
-    # t = [random.randint(0, 999) for _ in range(16)]
-
-    model = UNET(device=device).to(device)
-    out = model(x, t)
-    print(type(out), out.shape)
-
-    # visualize
-    img = out[0, 0].detach().cpu().numpy()
-
-    plt.imshow(img, cmap="gray")
-    plt.axis("off")
-    plt.savefig("sample.png", bbox_inches="tight", pad_inches=0)
-    plt.close()
-
-
-if __name__ == '__main__':
-    main()
