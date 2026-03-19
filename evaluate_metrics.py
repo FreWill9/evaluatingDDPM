@@ -1,19 +1,28 @@
+import random
+
 import numpy as np
 from PIL import Image
 from sklearn.metrics import pairwise_distances
 import torch
 import torchvision
 from torch_fidelity import calculate_metrics
-from diffusion_utils import linear_beta_schedule, cosine_beta_schedule, precompute_schedule
+from diffusion_utils import get_beta_schedule, precompute_schedule
 from sampling_utils import sample
 from models.ho_unet import UNet as HoUNet
 from models.simple_unet import SimpleUnet
 from models.unet import UNET
 import os
 
-def save_preprocessed_real_images(data_path, save_dir):
+def save_preprocessed_real_images(data_path, save_dir, num_samples=None):
     """Loads and saves preprocessed real images from .pt file to PNGs."""
     images = torch.load(data_path)  # [N, 1, img_size, img_size], normalized to [-1, 1]
+    # Subsample before saving
+    if num_samples is not None:
+        if num_samples > len(images):
+            raise ValueError(f"Requested {num_samples} samples, but dataset has only {len(images)}")
+        else:
+            indices = random.sample(range(len(images)), num_samples)
+            images = images[indices]
     # Undo normalization
     images = images * 0.5 + 0.5
     images = images.clamp(0, 1)
@@ -89,22 +98,22 @@ if __name__ == "__main__":
     data_name = "digits_gray16_1797"
     data_path = f"data/{data_name}.pt"
 
-    checkpoint_name = "simple_unet_100eps_digits16_cosine"
+    checkpoint_name = "simple_unet_100eps_digits16_sigmoid"
     checkpoint_path = f"checkpoints/{checkpoint_name}.pt"
 
     # Set paths for real and generated images for evaluation
     save_path_real = f"D:/data/evaluation/real_images/{data_name}"
     save_path_generated = f"D:/data/evaluation/generated_images/{checkpoint_name}"
 
-    # Set image size and number of samples to generate for evaluation
-    img_size = 16
-    num_samples = len(os.listdir(save_path_real)) # match number of real images
+    # Set image size and number of samples for evaluation
+    img_size = 64
+    num_samples = 2000
 
 
     # Step 1: Save preprocessed real images as PNGs for metric calculation
 
     if not os.path.exists(save_path_real) or len(os.listdir(save_path_real)) == 0:
-        save_preprocessed_real_images(data_path, save_path_real)
+        save_preprocessed_real_images(data_path, save_path_real, num_samples=num_samples)
         print(f"Saved preprocessed real images for evaluation at: {save_path_real}")
     else: 
         print(f"Real images already exist at: {save_path_real}, skipping saving step.")
@@ -120,11 +129,7 @@ if __name__ == "__main__":
     # Read schedule type from checkpoint and precompute values
     schedule_type = ckpt["schedule_type"]
     num_timesteps = ckpt["num_timesteps"]
-    if schedule_type == "linear":
-        betas = linear_beta_schedule(num_timesteps).to(device)
-    elif schedule_type == "cosine":
-        betas = cosine_beta_schedule(num_timesteps).to(device)
-    schedule = precompute_schedule(betas)
+    schedule = get_beta_schedule(schedule_type, num_timesteps, device)
 
     # Generate and save images if not already done
     if not os.path.exists(save_path_generated) or len(os.listdir(save_path_generated)) == 0:
@@ -145,8 +150,8 @@ if __name__ == "__main__":
         cuda=torch.cuda.is_available(),
     )
     
-    print(f"FID: {metrics['frechet_inception_distance']:.4f}")
-    print(f"KID: {metrics['kernel_inception_distance']:.4f}")
+    print(f"FID: {metrics['frechet_inception_distance']:.4f})")
+    print(f"KID: {metrics['kernel_inception_distance_mean']:.4f} ± {metrics['kernel_inception_distance_std']:.4f}")
     print(f"Inception Score: {metrics['inception_score_mean']:.4f} ± {metrics['inception_score_std']:.4f}")
 
     # Compute nearest-neighbor pixel distances
@@ -163,11 +168,17 @@ if __name__ == "__main__":
                 - After 100 epochs:
                     - IS: 1.7409 ± 0.0336, FID: 20.8106
                     - Cosine schedule: FID: 16.3952
-                    - 
+                    - Sigmoid schedule: FID: 32.7254 (tau=1.0), KID: 0.0356 +- 0.0011
                 - After 5000 epochs:
                     - IS: 1.7409 ± 0.0336, FID: 6.0066
                     - Nearest-neighbor pixel distances:
                         - Gen->Real  NN distance (mean): 0.9834, median: 0.9644
                         - Real->Real NN distance (mean): 1.4271, median: 1.3974
                         - Ratio (gen->real / real->real): 0.6889
+    - For celeba_64_20000 (real): IS = ?
+        - For simple_unet64_celeba20000 (only 2000 generated):
+                - IS: 3.0627 ± 0.0653
+                - FID: 316.1601
+                - 
+        - For unet64_celeba20000 (generated): TODO
     """
