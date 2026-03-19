@@ -94,6 +94,18 @@ def precompute_schedule(betas):
     }
 
 
+def get_beta_schedule(schedule_type, num_timesteps, device):
+    """Load and compute a beta schedule by name."""
+    schedulers = {
+        "linear": linear_beta_schedule,
+        "cosine": cosine_beta_schedule,
+        "sigmoid": sigmoid_beta_schedule,
+    }
+    if schedule_type not in schedulers:
+        raise ValueError(f"Unknown schedule type '{schedule_type}'. Choose from {list(schedulers)}")
+    return schedulers[schedule_type](num_timesteps).to(device)
+
+
 def extract(schedule_tensor, t, x_shape):
     """Gather the precomputed schedule value at timestep t and reshape accordingly."""
     batch_size = t.shape[0]
