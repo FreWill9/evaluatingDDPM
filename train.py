@@ -27,14 +27,6 @@ def train(model, data_path,  checkpoint_name, batch_size, num_epochs, num_timest
     optimizer = optim.Adam(model.parameters(), lr=learning_rate)
     criterion = nn.MSELoss()
 
-    if schedule_type == "linear":
-        betas = linear_beta_schedule(1000).to(device)
-    elif schedule_type == "cosine":
-        betas = cosine_beta_schedule(1000).to(device)
-    else:
-        raise ValueError(f"Unknown schedule type: {schedule_type}")
-    schedule = precompute_schedule(betas)
-
     # Resume from checkpoint if available
     os.makedirs("checkpoints", exist_ok=True)
     checkpoint_path = os.path.join("checkpoints", f"{checkpoint_name}.pt")
