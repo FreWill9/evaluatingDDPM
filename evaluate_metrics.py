@@ -107,13 +107,14 @@ if __name__ == "__main__":
 
     # Set image size and number of samples for evaluation
     img_size = 64
-    num_samples = 2000
+    num_samples_for_evaluation = 2000
+    num_samples_per_batch = 1000 # Generate in batches to avoid memory issues (rerun script till num_required_samples is reached)
 
 
     # Step 1: Save preprocessed real images as PNGs for metric calculation
 
     if not os.path.exists(save_path_real) or len(os.listdir(save_path_real)) == 0:
-        save_preprocessed_real_images(data_path, save_path_real, num_samples=num_samples)
+        save_preprocessed_real_images(data_path, save_path_real, num_samples=num_samples_for_evaluation)
         print(f"Saved preprocessed real images for evaluation at: {save_path_real}")
     else: 
         print(f"Real images already exist at: {save_path_real}, skipping saving step.")
@@ -133,8 +134,10 @@ if __name__ == "__main__":
     schedule = precompute_schedule(betas)
 
     # Generate and save images if not already done
-    if not os.path.exists(save_path_generated) or len(os.listdir(save_path_generated)) == 0:
+    num_generated_samples = len(os.listdir(save_path_generated))
+    if not os.path.exists(save_path_generated) or num_generated_samples < num_samples_for_evaluation:
         print("Generating and saving generated images for evaluation...")
+        num_samples = min(num_samples_per_batch, num_samples_for_evaluation - num_generated_samples)
         save_images(model, schedule, device, img_size, num_timesteps=num_timesteps, num_samples=num_samples, save_dir=save_path_generated)
     else:
         print(f"Generated images already exist at: {save_path_generated}, skipping generation step.")
