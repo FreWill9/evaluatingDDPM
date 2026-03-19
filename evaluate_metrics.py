@@ -129,7 +129,8 @@ if __name__ == "__main__":
     # Read schedule type from checkpoint and precompute values
     schedule_type = ckpt["schedule_type"]
     num_timesteps = ckpt["num_timesteps"]
-    schedule = get_beta_schedule(schedule_type, num_timesteps, device)
+    betas = get_beta_schedule(schedule_type, num_timesteps, device)
+    schedule = precompute_schedule(betas)
 
     # Generate and save images if not already done
     if not os.path.exists(save_path_generated) or len(os.listdir(save_path_generated)) == 0:
