@@ -46,6 +46,37 @@ def cosine_beta_schedule(num_timesteps):
     return torch.from_numpy(betas).float()
 
 
+def sigmoid_schedule(t, start, end, tau, clip_min=1e-9):
+    """
+    Sigmoid schedule copied from https://github.com/google-research/pix2seq and adapted to PyTorch.
+
+    Args:
+        t: `float` between 0 and 1.
+        start: `float` starting point in x-axis of sigmoid function.
+        end: `float` ending point in x-axis of sigmoid function.
+        tau: `float` scaling temperature for sigmoid function.
+        clip_min: `float` lower bound for output.
+
+    Returns:
+        `float` of transformed time between 0 and 1.
+    """
+
+    v_start = torch.sigmoid(torch.tensor(start / tau))
+    v_end = torch.sigmoid(torch.tensor(end / tau))
+    output = (-torch.sigmoid((t * (end - start) + start) / tau) + v_end) / (
+            v_end - v_start)
+    return torch.clamp(output, clip_min, 1.)
+
+
+def sigmoid_beta_schedule(num_timesteps, start=-3., end=3., tau=1.0):
+    betas = betas_for_alpha_bar(
+            num_timesteps,
+            lambda t: sigmoid_schedule(
+                torch.tensor(t), start, end, tau).item()
+    )
+    return torch.from_numpy(betas).float()
+
+
 def precompute_schedule(betas):
     """Precompute all closed-form quantities needed for training & sampling."""
     alphas = 1.0 - betas
