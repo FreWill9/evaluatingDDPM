@@ -46,6 +46,37 @@ def cosine_beta_schedule(num_timesteps):
     return torch.from_numpy(betas).float()
 
 
+def sigmoid_schedule(t, start, end, tau, clip_min=1e-9):
+    """
+    Sigmoid schedule copied from https://github.com/google-research/pix2seq and adapted to PyTorch.
+
+    Args:
+        t: `float` between 0 and 1.
+        start: `float` starting point in x-axis of sigmoid function.
+        end: `float` ending point in x-axis of sigmoid function.
+        tau: `float` scaling temperature for sigmoid function.
+        clip_min: `float` lower bound for output.
+
+    Returns:
+        `float` of transformed time between 0 and 1.
+    """
+
+    v_start = torch.sigmoid(torch.tensor(start / tau))
+    v_end = torch.sigmoid(torch.tensor(end / tau))
+    output = (-torch.sigmoid((t * (end - start) + start) / tau) + v_end) / (
+            v_end - v_start)
+    return torch.clamp(output, clip_min, 1.)
+
+
+def sigmoid_beta_schedule(num_timesteps, start=-3., end=3., tau=1.0):
+    betas = betas_for_alpha_bar(
+            num_timesteps,
+            lambda t: sigmoid_schedule(
+                torch.tensor(t), start, end, tau).item()
+    )
+    return torch.from_numpy(betas).float()
+
+
 def precompute_schedule(betas):
     """Precompute all closed-form quantities needed for training & sampling."""
     alphas = 1.0 - betas
@@ -61,6 +92,18 @@ def precompute_schedule(betas):
         "sqrt_recip_alpha": torch.sqrt(1.0 / alphas),
         "posterior_variance": betas * (1.0 - alpha_cumprod_prev) / (1.0 - alpha_cumprod),
     }
+
+
+def get_beta_schedule(schedule_type, num_timesteps, device):
+    """Load and compute a beta schedule by name."""
+    schedulers = {
+        "linear": linear_beta_schedule,
+        "cosine": cosine_beta_schedule,
+        "sigmoid": sigmoid_beta_schedule,
+    }
+    if schedule_type not in schedulers:
+        raise ValueError(f"Unknown schedule type '{schedule_type}'. Choose from {list(schedulers)}")
+    return schedulers[schedule_type](num_timesteps).to(device)
 
 
 def extract(schedule_tensor, t, x_shape):

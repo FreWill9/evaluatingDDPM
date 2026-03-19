@@ -2,7 +2,7 @@ from matplotlib import pyplot as plt
 import torch
 import torchvision
 from tqdm import tqdm
-from diffusion_utils import linear_beta_schedule, cosine_beta_schedule, precompute_schedule, reverse_diffusion_step
+from diffusion_utils import get_beta_schedule, precompute_schedule, reverse_diffusion_step
 from models.ho_unet import UNet as HoUNet
 from models.simple_unet import SimpleUnet
 from models.unet import UNET
@@ -56,14 +56,9 @@ if __name__ == "__main__":
     # Read schedule type from checkpoint and precompute values
     schedule_type = ckpt["schedule_type"]
     num_timesteps = ckpt["num_timesteps"]
-    if schedule_type == "linear":
-        betas = linear_beta_schedule(num_timesteps).to(device)
-    elif schedule_type == "cosine":
-        betas = cosine_beta_schedule(num_timesteps).to(device)
+    betas = get_beta_schedule(schedule_type, num_timesteps, device)
     schedule = precompute_schedule(betas)
 
     img_size = 64
-    betas = linear_beta_schedule(1000).to(device)
-    schedule = precompute_schedule(betas)
 
     sample_and_save(model, schedule, device, img_size, "outdir", num_samples=24)

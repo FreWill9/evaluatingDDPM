@@ -4,7 +4,8 @@ import torch.optim as optim
 from torch.utils.data import DataLoader, TensorDataset
 from tqdm import tqdm
 import os
-from diffusion_utils import linear_beta_schedule, cosine_beta_schedule, precompute_schedule, forward_diffusion
+from diffusion_utils import get_beta_schedule, precompute_schedule, forward_diffusion
+
 from models.ho_unet import UNet as HoUNet
 from models.simple_unet import SimpleUnet
 from models.unet import UNET
@@ -31,14 +32,6 @@ def train(model, data_path,  checkpoint_name, batch_size, num_epochs, num_timest
 
     criterion = nn.MSELoss()
 
-    if schedule_type == "linear":
-        betas = linear_beta_schedule(1000).to(device)
-    elif schedule_type == "cosine":
-        betas = cosine_beta_schedule(1000).to(device)
-    else:
-        raise ValueError(f"Unknown schedule type: {schedule_type}")
-    schedule = precompute_schedule(betas)
-
     # Resume from checkpoint if available
     os.makedirs("checkpoints", exist_ok=True)
     checkpoint_path = os.path.join("checkpoints", f"{checkpoint_name}.pt")
@@ -56,7 +49,12 @@ def train(model, data_path,  checkpoint_name, batch_size, num_epochs, num_timest
 
         start_epoch = ckpt["epoch"] + 1
         loss_history = ckpt.get("loss_history", [])
+        # Override schedule_type from checkpoint to ensure consistency
+        schedule_type = ckpt.get("schedule_type", schedule_type)
         print(f"  → Resuming at epoch {start_epoch}")
+
+    # Build schedule based on checkpoint or specified type (if no checkpoint)
+    schedule = precompute_schedule(get_beta_schedule(schedule_type, num_timesteps, device))
 
     # Training loop
     for epoch in tqdm(range(start_epoch, num_epochs), desc="Training"):
@@ -94,7 +92,7 @@ def train(model, data_path,  checkpoint_name, batch_size, num_epochs, num_timest
             "loss": avg_loss,
             "loss_history": loss_history,
             "num_timesteps": num_timesteps,
-            "schedule_type": schedule_type, # "cosine" or "linear"
+            "schedule_type": schedule_type,
         }, checkpoint_path)
         tqdm.write(f"Checkpoint saved to {checkpoint_path}")
 
