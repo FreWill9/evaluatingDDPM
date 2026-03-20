@@ -29,8 +29,32 @@ def plot_loss(checkpoint_path: str, outdir: str = "loss_plots"):
     print(f"Saved loss plot successfully to '{outdir}/loss-UNET_gpu64.svg'!")
 
 
+def plot_DS_loss(checkpoint_path: str, outdir: str = "loss_plots"):
+    checkpoint = torch.load(checkpoint_path)
+    loss_history = checkpoint.get("loss_history", [])
+    aux_loss_history = checkpoint.get("aux_loss_history", [])
+    total_loss_history = checkpoint.get("total_loss_history", [])
+
+    plt.figure(figsize=(8, 5))
+
+    plt.plot(loss_history, label="Main loss")
+    plt.plot(aux_loss_history, label="Aux loss")
+    plt.plot(total_loss_history, label="Total loss")
+
+    plt.xlabel("Epoch")
+    plt.ylabel("Loss")
+    plt.title("Training losses")
+    plt.legend()
+    plt.grid(True, alpha=0.3)
+    plt.tight_layout()
+
+    plt.savefig(f"{outdir}/loss-UNET64-DS.svg", format="svg")
+    plt.close()
+    print(f"Saved DS losses plot successfully to '{outdir}/loss-UNET64-DS.svg'!")
+
+
 def main():
-    plot_loss("checkpoints/UNET_gpu64.pt")
+    plot_DS_loss("checkpoints/UNET_gpu64_DS.pt")
 
 
 if __name__ == "__main__":

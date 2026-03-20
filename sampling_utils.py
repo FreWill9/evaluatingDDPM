@@ -6,6 +6,7 @@ from diffusion_utils import get_beta_schedule, precompute_schedule, reverse_diff
 from models.ho_unet import UNet as HoUNet
 from models.simple_unet import SimpleUnet
 from models.unet import UNET
+from models.unet_DS import UNET_DS
 
 @torch.no_grad()
 def sample(model, shape, schedule, device, num_timesteps: int = 1000):
@@ -47,8 +48,8 @@ if __name__ == "__main__":
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     # Select model and load checkpoint
-    model = UNET().to(device)
-    checkpoint_path = "checkpoints/UNET_gpu64.pt"
+    model = UNET_DS().to(device)
+    checkpoint_path = "checkpoints/UNET_gpu64_DS.pt"
     ckpt = torch.load(checkpoint_path, map_location=device)
     model.load_state_dict(ckpt["model_state_dict"])
     model.eval()

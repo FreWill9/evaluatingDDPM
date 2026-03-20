@@ -133,7 +133,8 @@ def reverse_diffusion_step(model, x_t, t, t_index, schedule):
     sqrt_recip_alpha_t = extract(schedule["sqrt_recip_alpha"], t, x_t.shape)
 
     # Predict the mean
-    predicted_noise = model(x_t, t)
+    out = model(x_t, t)
+    predicted_noise = out[0] if isinstance(out, (tuple, list)) else out
     mean = sqrt_recip_alpha_t * (x_t - betas_t / sqrt_one_minus_alpha_cumprod_t * predicted_noise)
 
     if t_index == 0:
