@@ -9,10 +9,11 @@ from models.unet import UNET
 from models.unet_DS import UNET_DS
 
 @torch.no_grad()
-def sample(model, shape, schedule, device, num_timesteps: int = 1000):
+def sample(model, shape, schedule, device, num_timesteps: int = 1000, tqdm: bool = True):
     """Generate image from pure noise."""
     img = torch.randn(shape, device=device)
-    for i in tqdm(reversed(range(num_timesteps)), total=num_timesteps, desc="Sampling"):
+    timesteps = tqdm(reversed(range(num_timesteps)), total=num_timesteps, desc="Sampling") if tqdm else reversed(range(num_timesteps))
+    for i in timesteps:
         t = torch.full((shape[0],), i, device=device, dtype=torch.long)
         img = reverse_diffusion_step(model, img, t, i, schedule)
     return img
