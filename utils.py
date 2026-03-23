@@ -35,6 +35,8 @@ def plot_DS_loss(checkpoint_path: str, outdir: str = "loss_plots"):
     aux_loss_history = checkpoint.get("aux_loss_history", [])
     total_loss_history = checkpoint.get("total_loss_history", [])
 
+    # print(f"loss: {loss_history}, aux_loss: {aux_loss_history}, total_loss: {total_loss_history}")
+
     plt.figure(figsize=(8, 5))
 
     plt.plot(loss_history, label="Main loss")

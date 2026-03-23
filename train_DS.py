@@ -79,12 +79,12 @@ def train(model, data_path,  checkpoint_name, batch_size, num_epochs, num_timest
             predicted_noise, aux_out = model(x_t, t)
             loss = criterion(predicted_noise, noise)
 
-            # Downsample true noise and compute auxiliary loss to enable deep supervision
-            aux_target = F.interpolate(noise, size=aux_out.shape[-2:], mode="area")
-            aux_loss = criterion(aux_out, aux_target)
+            # Upsample auxiliary output and compute auxiliary loss to enable deep supervision
+            aux_pred = F.interpolate(aux_out, size=noise.shape[-2:], mode="bilinear", align_corners=False)
+            aux_loss = criterion(aux_pred, noise)
 
             # Weighted sum of losses
-            lambda_aux = 0.2
+            lambda_aux = 0.01
             total_loss = loss + lambda_aux * aux_loss
 
             optimizer.zero_grad(set_to_none=True)
@@ -98,6 +98,7 @@ def train(model, data_path,  checkpoint_name, batch_size, num_epochs, num_timest
         avg_loss = epoch_loss / len(train_loader)
         avg_aux_loss = epoch_aux_loss / len(train_loader)
         avg_total_loss = epoch_total_loss / len(train_loader)
+
         lr_scheduler.step()
 
         tqdm.write(f"Epoch [{epoch + 1}/{num_epochs}], Loss: {avg_loss:.6f}, Aux Loss: {avg_aux_loss:.6f}, Total Loss: {avg_total_loss:.6f}")
@@ -133,7 +134,7 @@ if __name__ == "__main__":
 
     checkpoint_name = "UNET_gpu64_DS"
     batch_size = 32
-    num_epochs = 9
+    num_epochs = 300
     num_timesteps = 1000
     initial_learn_rate = 0.0002
 

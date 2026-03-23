@@ -166,13 +166,13 @@ class UNET_DS(nn.Module):
         # Decoder
         for i in range(self.num_layers // 2, self.num_layers):
             layer = getattr(self, f'Layer{i + 1}')
-            x_up, dec_feat = layer(x, emb)
-
-            # Compute auxiliary output in penultimate layer
-            if i == self.num_layers - 1:
-                aux_out = self.auxHead(dec_feat)
+            x_up, _ = layer(x, emb)
 
             x = torch.cat((x_up, residuals[self.num_layers - i - 1]), dim=1)
+
+            # Compute auxiliary output before penultimate layer
+            if i == self.num_layers - 2:
+                aux_out = self.auxHead(x)
 
         x = self.relu(self.late_conv(x))
         return self.output_conv(x), aux_out
