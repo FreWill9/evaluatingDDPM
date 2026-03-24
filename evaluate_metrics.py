@@ -1,11 +1,11 @@
 import random
-
 import numpy as np
 from PIL import Image
 from sklearn.metrics import pairwise_distances
 import torch
 import torchvision
 from torch_fidelity import calculate_metrics
+from tqdm import tqdm
 from diffusion_utils import get_beta_schedule, precompute_schedule
 from sampling_utils import sample
 from models.ho_unet import UNet as HoUNet
@@ -33,15 +33,15 @@ def save_preprocessed_real_images(data_path, save_dir, num_samples=None):
     print(f"Saved {len(images)} real images to: {save_dir}")
 
 
-def save_images(model, schedule, device, img_size, num_timesteps, num_samples, save_dir="outputs"):
+def save_images(model, schedule, device, img_size, num_timesteps, num_samples, save_dir):
     """Generate and save a batch of images as PNGs."""
-    os.makedirs(save_dir, exist_ok=True)
     samples = sample(model, (num_samples, 1, img_size, img_size), schedule, device, num_timesteps)
     # Undo normalization
     samples = (samples + 1) / 2
     samples = samples.clamp(0, 1)
-    for i in range(num_samples):
-        torchvision.utils.save_image(samples[i], os.path.join(save_dir, f"{i:04d}.png"))
+    start_index = len(os.listdir(save_dir))
+    for i, img in enumerate(samples, start=start_index):
+        torchvision.utils.save_image(img, os.path.join(save_dir, f"{i:04d}.png"))
 
 
 def compute_nn_distance(real_dir, gen_dir, subsample=None):
@@ -92,13 +92,13 @@ if __name__ == "__main__":
 
     # Select model architecture
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model = SimpleUnet().to(device)
+    model = UNET().to(device)
 
     # Set path to preprocessed dataset and model checkpoint
-    data_name = "digits_gray16_1797"
+    data_name = "celeba_gray64_20000"
     data_path = f"data/{data_name}.pt"
 
-    checkpoint_name = "simple_unet_100eps_digits16_sigmoid"
+    checkpoint_name = "UNET64_100"
     checkpoint_path = f"checkpoints/{checkpoint_name}.pt"
 
     # Set paths for real and generated images for evaluation
@@ -108,11 +108,9 @@ if __name__ == "__main__":
     # Set image size and number of samples for evaluation
     img_size = 64
     num_samples_for_evaluation = 2000
-    num_samples_per_batch = 1000 # Generate in batches to avoid memory issues (rerun script till num_required_samples is reached)
-
+    num_samples_per_batch = 50 # Generate and save in batches to avoid memory issues
 
     # Step 1: Save preprocessed real images as PNGs for metric calculation
-
     if not os.path.exists(save_path_real) or len(os.listdir(save_path_real)) == 0:
         save_preprocessed_real_images(data_path, save_path_real, num_samples=num_samples_for_evaluation)
         print(f"Saved preprocessed real images for evaluation at: {save_path_real}")
@@ -128,17 +126,27 @@ if __name__ == "__main__":
     model.eval()
 
     # Read schedule type from checkpoint and precompute values
-    schedule_type = ckpt["schedule_type"]
+    #schedule_type = ckpt["schedule_type"]
+    schedule_type = "linear"
     num_timesteps = ckpt["num_timesteps"]
     betas = get_beta_schedule(schedule_type, num_timesteps, device)
     schedule = precompute_schedule(betas)
 
     # Generate and save images if not already done
+    os.makedirs(save_path_generated, exist_ok=True)
     num_generated_samples = len(os.listdir(save_path_generated))
+
     if not os.path.exists(save_path_generated) or num_generated_samples < num_samples_for_evaluation:
         print("Generating and saving generated images for evaluation...")
-        num_samples = min(num_samples_per_batch, num_samples_for_evaluation - num_generated_samples)
-        save_images(model, schedule, device, img_size, num_timesteps=num_timesteps, num_samples=num_samples, save_dir=save_path_generated)
+        # Sample in batches until we have enough samples for evaluation
+        with tqdm(total=num_samples_for_evaluation, desc="Generating images") as pbar:
+            pbar.update(len(os.listdir(save_path_generated)))  # account for already existing images
+            while len(os.listdir(save_path_generated)) < num_samples_for_evaluation:
+                remaining = num_samples_for_evaluation - len(os.listdir(save_path_generated))
+                batch = min(remaining, num_samples_per_batch)
+                save_images(model, schedule, device, img_size, num_timesteps, batch, save_path_generated)
+                pbar.update(batch)
+            print(f"Saved generated images for evaluation at: {save_path_generated}")
     else:
         print(f"Generated images already exist at: {save_path_generated}, skipping generation step.")
 
@@ -180,9 +188,9 @@ if __name__ == "__main__":
                         - Real->Real NN distance (mean): 1.4271, median: 1.3974
                         - Ratio (gen->real / real->real): 0.6889
     - For celeba_64_20000 (real): IS = ?
-        - For simple_unet64_celeba20000 (only 2000 generated):
-                - IS: 3.0627 ± 0.0653
-                - FID: 316.1601
+        - Evaluation of 2000 generated samples with 2000 randomly selected real images:
+        - For simple_unet64_celeba20000:
+                - 
                 - 
         - For unet64_celeba20000 (generated): TODO
     """

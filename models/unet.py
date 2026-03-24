@@ -15,8 +15,8 @@ class ResBlock(nn.Module):
         self.groupNorm2 = nn.GroupNorm(num_groups=num_groups, num_channels=C)
         self.conv1 = nn.Conv2d(C, C, kernel_size=3, stride=1, padding=1)
         self.conv2 = nn.Conv2d(C, C, kernel_size=3, stride=1, padding=1)
-        self.relu = nn.ReLU(inplace=True)
-        self.dropout = nn.Dropout(p=dropout_prob, inplace=True)
+        self.relu = nn.ReLU(inplace=False)
+        self.dropout = nn.Dropout(p=dropout_prob, inplace=False)
         self.emb_proj = nn.Conv2d(emb_dim, C, kernel_size=1)
 
     def forward(self, x, embeddings):
@@ -136,7 +136,7 @@ class UNET(nn.Module):
         out_channels = (Channels[-1] // 2) + Channels[0]
         self.late_conv = nn.Conv2d(out_channels, out_channels // 2, kernel_size=3, padding=1)
         self.output_conv = nn.Conv2d(out_channels // 2, output_channels, kernel_size=1)
-        self.relu = nn.ReLU(inplace=True)
+        self.relu = nn.ReLU(inplace=False)
         self.embeddings = SinusoidalEmbeddings(time_steps=time_steps, embed_dim=max(Channels), device=device)
         for i in range(self.num_layers):
             layer = UnetLayer(
@@ -150,17 +150,25 @@ class UNET(nn.Module):
             setattr(self, f'Layer{i + 1}', layer)
 
     def forward(self, x, t):
+        emb = self.embeddings(t)
         x = self.shallow_conv(x)
+
         residuals = []
+
+        # encoder
         for i in range(self.num_layers // 2):
             layer = getattr(self, f'Layer{i + 1}')
-            embeddings = self.embeddings(t)
-            x, r = layer(x, embeddings)
+            x, r = layer(x, emb)
             residuals.append(r)
+
+        # decoder
         for i in range(self.num_layers // 2, self.num_layers):
             layer = getattr(self, f'Layer{i + 1}')
-            x = torch.concat((layer(x, embeddings)[0], residuals[self.num_layers - i - 1]), dim=1)
-        return self.output_conv(self.relu(self.late_conv(x)))
+            x_up, _ = layer(x, emb)
+            x = torch.cat((x_up, residuals[self.num_layers - i - 1]), dim=1)
+
+        x = self.relu(self.late_conv(x))
+        return self.output_conv(x)
 
 
 def main():

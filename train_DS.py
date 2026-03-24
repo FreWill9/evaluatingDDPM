@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader, TensorDataset
+import torch.nn.functional as F
 from tqdm import tqdm
 import os
 from diffusion_utils import get_beta_schedule, precompute_schedule, forward_diffusion
@@ -9,6 +10,7 @@ from diffusion_utils import get_beta_schedule, precompute_schedule, forward_diff
 from models.ho_unet import UNet as HoUNet
 from models.simple_unet import SimpleUnet
 from models.unet import UNET
+from models.unet_DS import UNET_DS
 
 def train(model, data_path,  checkpoint_name, batch_size, num_epochs, num_timesteps, 
             learning_rate, schedule_type="linear"):
@@ -37,6 +39,8 @@ def train(model, data_path,  checkpoint_name, batch_size, num_epochs, num_timest
     checkpoint_path = os.path.join("checkpoints", f"{checkpoint_name}.pt")
     start_epoch = 0
     loss_history = []
+    aux_loss_history = []
+    total_loss_history = []
 
     if os.path.exists(checkpoint_path):
         print(f"Resuming from checkpoint: {checkpoint_path}")
@@ -49,6 +53,8 @@ def train(model, data_path,  checkpoint_name, batch_size, num_epochs, num_timest
 
         start_epoch = ckpt["epoch"] + 1
         loss_history = ckpt.get("loss_history", [])
+        aux_loss_history = ckpt.get("aux_loss_history", [])
+        total_loss_history = ckpt.get("total_loss_history", [])
         # Override schedule_type from checkpoint to ensure consistency
         schedule_type = ckpt.get("schedule_type", schedule_type)
         print(f"  → Resuming at epoch {start_epoch}")
@@ -60,6 +66,8 @@ def train(model, data_path,  checkpoint_name, batch_size, num_epochs, num_timest
     for epoch in tqdm(range(start_epoch, num_epochs), desc="Training"):
         model.train()
         epoch_loss = 0.0
+        epoch_aux_loss = 0.0
+        epoch_total_loss = 0.0
 
         for (x_0,) in train_loader:
             x_0 = x_0.to(device)
@@ -68,20 +76,35 @@ def train(model, data_path,  checkpoint_name, batch_size, num_epochs, num_timest
             t = torch.randint(0, num_timesteps, (x_0.shape[0],), device=device)
 
             x_t, noise = forward_diffusion(x_0, t, schedule)
-            predicted_noise = model(x_t, t)
+            predicted_noise, aux_out = model(x_t, t)
             loss = criterion(predicted_noise, noise)
 
-            optimizer.zero_grad()
-            loss.backward()
+            # Upsample auxiliary output and compute auxiliary loss to enable deep supervision
+            aux_pred = F.interpolate(aux_out, size=noise.shape[-2:], mode="bilinear", align_corners=False)
+            aux_loss = criterion(aux_pred, noise)
+
+            # Weighted sum of losses
+            lambda_aux = 0.01
+            total_loss = loss + lambda_aux * aux_loss
+
+            optimizer.zero_grad(set_to_none=True)
+            total_loss.backward()
             optimizer.step()
 
             epoch_loss += loss.item()
+            epoch_aux_loss += aux_loss.item()
+            epoch_total_loss += total_loss.item()
 
         avg_loss = epoch_loss / len(train_loader)
+        avg_aux_loss = epoch_aux_loss / len(train_loader)
+        avg_total_loss = epoch_total_loss / len(train_loader)
+
         lr_scheduler.step()
 
-        tqdm.write(f"Epoch [{epoch + 1}/{num_epochs}]  Loss: {avg_loss:.6f}")
+        tqdm.write(f"Epoch [{epoch + 1}/{num_epochs}], Loss: {avg_loss:.6f}, Aux Loss: {avg_aux_loss:.6f}, Total Loss: {avg_total_loss:.6f}")
         loss_history.append(float(avg_loss))
+        aux_loss_history.append(float(avg_aux_loss))
+        total_loss_history.append(float(avg_total_loss))
 
         # Save checkpoint
         torch.save({
@@ -91,6 +114,8 @@ def train(model, data_path,  checkpoint_name, batch_size, num_epochs, num_timest
             "scheduler_state_dict": lr_scheduler.state_dict(),
             "loss": avg_loss,
             "loss_history": loss_history,
+            "aux_loss_history": aux_loss_history,
+            "total_loss_history": total_loss_history,
             "num_timesteps": num_timesteps,
             "schedule_type": schedule_type,
         }, checkpoint_path)
@@ -105,11 +130,11 @@ if __name__ == "__main__":
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     # Select model architecture
-    model = UNET().to(device)
+    model = UNET_DS().to(device)
 
-    checkpoint_name = "UNET_gpu64"
+    checkpoint_name = "UNET_gpu64_DS"
     batch_size = 32
-    num_epochs = 150
+    num_epochs = 300
     num_timesteps = 1000
     initial_learn_rate = 0.0002
 

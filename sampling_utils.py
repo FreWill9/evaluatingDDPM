@@ -6,19 +6,21 @@ from diffusion_utils import get_beta_schedule, precompute_schedule, reverse_diff
 from models.ho_unet import UNet as HoUNet
 from models.simple_unet import SimpleUnet
 from models.unet import UNET
+from models.unet_DS import UNET_DS
 
 @torch.no_grad()
-def sample(model, shape, schedule, device, num_timesteps: int = 1000):
+def sample(model, shape, schedule, device, num_timesteps: int = 1000, show_progress: bool = False):
     """Generate image from pure noise."""
     img = torch.randn(shape, device=device)
-    for i in tqdm(reversed(range(num_timesteps)), total=num_timesteps, desc="Sampling"):
+    timesteps = tqdm(reversed(range(num_timesteps)), total=num_timesteps, desc="Sampling") if show_progress else reversed(range(num_timesteps))
+    for i in timesteps:
         t = torch.full((shape[0],), i, device=device, dtype=torch.long)
         img = reverse_diffusion_step(model, img, t, i, schedule)
     return img
 
 def sample_and_plot(model, schedule, device, img_size, num_timesteps: int = 1000, num_samples: int = 1):
     """Generate and plot a grid of images."""
-    samples = sample(model, (num_samples, 1, img_size, img_size), schedule, device, num_timesteps=num_timesteps)
+    samples = sample(model, (num_samples, 1, img_size, img_size), schedule, device, num_timesteps=num_timesteps, show_progress=True)
     # De-normalize from [-1, 1] to [0, 1]
     samples = (samples + 1) / 2
     samples = samples.clamp(0, 1)
@@ -31,7 +33,7 @@ def sample_and_plot(model, schedule, device, img_size, num_timesteps: int = 1000
 
 def sample_and_save(model, schedule, device, img_size, outdir: str, num_timesteps:int = 1000, num_samples: int = 1):
     """Generate a grid of images and save as svg."""
-    samples = sample(model, (num_samples, 1, img_size, img_size), schedule, device, num_timesteps=num_timesteps)
+    samples = sample(model, (num_samples, 1, img_size, img_size), schedule, device, num_timesteps=num_timesteps, show_progress=True)
     # De-normalize from [-1, 1] to [0, 1]
     samples = (samples + 1) / 2
     samples = samples.clamp(0, 1)
@@ -47,8 +49,8 @@ if __name__ == "__main__":
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     # Select model and load checkpoint
-    model = UNET().to(device)
-    checkpoint_path = "checkpoints/UNET_gpu64.pt"
+    model = UNET_DS().to(device)
+    checkpoint_path = "checkpoints/UNET_gpu64_DS.pt"
     ckpt = torch.load(checkpoint_path, map_location=device)
     model.load_state_dict(ckpt["model_state_dict"])
     model.eval()

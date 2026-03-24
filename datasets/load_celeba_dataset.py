@@ -10,7 +10,7 @@ import os
 Use this script to load the CelebA dataset from disk, preprocess it and save as pt file.
 """
 
-class CelebAGray32(Dataset):
+class CelebAGray(Dataset):
     """Lazy-loads CelebA jpg images, converting to img_size × img_size grayscale tensors."""
     def __init__(self, root, img_size):
         self.paths = sorted(Path(root).glob("*.jpg"))
@@ -33,16 +33,16 @@ class CelebAGray32(Dataset):
 
 
 if __name__ == "__main__":
-    data_dir = r".../img_align_celeba"
+    data_dir = r"/Users/frederikwillger/Downloads/img_align_celeba"
     save_dir = "data"
     img_size = 64
-    subset_size = 5000
+    subset_size = 20000
 
     os.makedirs(save_dir, exist_ok=True)
 
-    full_dataset = CelebAGray32(data_dir, img_size=img_size)
+    full_dataset = CelebAGray(data_dir, img_size=img_size)
 
-    random.seed(0)
+    random.seed(9)
     indices = list(range(len(full_dataset)))
     random.shuffle(indices)
     dataset = Subset(full_dataset, indices[:subset_size])

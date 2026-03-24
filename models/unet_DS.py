@@ -111,7 +111,7 @@ class SinusoidalEmbeddings(nn.Module):
         return embeds[:, :, None, None]
 
 
-class UNET(nn.Module):
+class UNET_DS(nn.Module):
     def __init__(self,
                  Channels: List = None,
                  Attentions: List = None,
@@ -138,6 +138,7 @@ class UNET(nn.Module):
         self.output_conv = nn.Conv2d(out_channels // 2, output_channels, kernel_size=1)
         self.relu = nn.ReLU(inplace=True)
         self.embeddings = SinusoidalEmbeddings(time_steps=time_steps, embed_dim=max(Channels), device=device)
+        self.auxHead = nn.Conv2d(in_channels=Channels[-1], out_channels=output_channels, kernel_size=1, padding=0)
         for i in range(self.num_layers):
             layer = UnetLayer(
                 upscale=Upscales[i],
@@ -150,14 +151,28 @@ class UNET(nn.Module):
             setattr(self, f'Layer{i + 1}', layer)
 
     def forward(self, x, t):
+        emb = self.embeddings(t)
         x = self.shallow_conv(x)
+
         residuals = []
+        aux_out = None
+
+        # Encoder
         for i in range(self.num_layers // 2):
             layer = getattr(self, f'Layer{i + 1}')
-            embeddings = self.embeddings(t)
-            x, r = layer(x, embeddings)
+            x, r = layer(x, emb)
             residuals.append(r)
+
+        # Decoder
         for i in range(self.num_layers // 2, self.num_layers):
             layer = getattr(self, f'Layer{i + 1}')
-            x = torch.concat((layer(x, embeddings)[0], residuals[self.num_layers - i - 1]), dim=1)
-        return self.output_conv(self.relu(self.late_conv(x)))
+            x_up, _ = layer(x, emb)
+
+            x = torch.cat((x_up, residuals[self.num_layers - i - 1]), dim=1)
+
+            # Compute auxiliary output before penultimate layer
+            if i == self.num_layers - 2:
+                aux_out = self.auxHead(x)
+
+        x = self.relu(self.late_conv(x))
+        return self.output_conv(x), aux_out
