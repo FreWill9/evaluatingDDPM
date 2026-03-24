@@ -92,30 +92,36 @@ if __name__ == "__main__":
 
     # Select model architecture
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model = UNET().to(device)
+    model = SimpleUnet().to(device)
 
-    # Set path to preprocessed dataset and model checkpoint
-    data_name = "celeba_gray64_20000"
-    data_path = f"data/{data_name}.pt"
+    # Set paths to preprocessed dataset, holdout dataset, and model checkpoint
+    data_path = "data/celeba_gray64_20000.pt" # For NN distance
+    data_path_holdout = "data/celeba_gray64_holdout10000.pt" # For metrics FID, KID, IS
+    checkpoint_path = "checkpoints_dataset_size/simple_20000_100eps.pt"
 
-    checkpoint_name = "UNET64_100"
-    checkpoint_path = f"checkpoints/{checkpoint_name}.pt"
-
-    # Set paths for real and generated images for evaluation
-    save_path_real = f"D:/data/evaluation/real_images/{data_name}"
-    save_path_generated = f"D:/data/evaluation/generated_images/{checkpoint_name}"
+    # Set paths to saving directory for real and generated images for evaluation
+    save_path_train = "evaluation_data/real_images/celeba_gray64_20000"
+    save_path_holdout = "evaluation_data/real_images/celeba_gray64_holdout10000"
+    save_path_generated = "evaluation_data/generated_images/simple_20000_100eps"
 
     # Set image size and number of samples for evaluation
     img_size = 64
-    num_samples_for_evaluation = 2000
+    num_samples_for_evaluation = 5000 # Number of samples to generate
     num_samples_per_batch = 50 # Generate and save in batches to avoid memory issues
 
     # Step 1: Save preprocessed real images as PNGs for metric calculation
-    if not os.path.exists(save_path_real) or len(os.listdir(save_path_real)) == 0:
-        save_preprocessed_real_images(data_path, save_path_real, num_samples=num_samples_for_evaluation)
-        print(f"Saved preprocessed real images for evaluation at: {save_path_real}")
+
+    if not os.path.exists(save_path_train) or len(os.listdir(save_path_train)) == 0:
+        save_preprocessed_real_images(data_path, save_path_train)
+        print(f"Saved preprocessed real images for evaluation at: {save_path_train}")
     else: 
-        print(f"Real images already exist at: {save_path_real}, skipping saving step.")
+        print(f"Real images already exist at: {save_path_train}, skipping saving step.")
+
+    if not os.path.exists(save_path_holdout) or len(os.listdir(save_path_holdout)) == 0:
+        save_preprocessed_real_images(data_path_holdout, save_path_holdout)
+        print(f"Saved preprocessed holdout images for evaluation at: {save_path_holdout}")
+    else: 
+        print(f"Holdout images already exist at: {save_path_holdout}, skipping saving step.")
 
     
     # Step 2: Generate and save images as PNGs from the trained model for metric calculation
@@ -126,8 +132,7 @@ if __name__ == "__main__":
     model.eval()
 
     # Read schedule type from checkpoint and precompute values
-    #schedule_type = ckpt["schedule_type"]
-    schedule_type = "linear"
+    schedule_type = ckpt["schedule_type"]
     num_timesteps = ckpt["num_timesteps"]
     betas = get_beta_schedule(schedule_type, num_timesteps, device)
     schedule = precompute_schedule(betas)
@@ -137,10 +142,10 @@ if __name__ == "__main__":
     num_generated_samples = len(os.listdir(save_path_generated))
 
     if not os.path.exists(save_path_generated) or num_generated_samples < num_samples_for_evaluation:
-        print("Generating and saving generated images for evaluation...")
+        print("Generating and saving images for evaluation...")
         # Sample in batches until we have enough samples for evaluation
         with tqdm(total=num_samples_for_evaluation, desc="Generating images") as pbar:
-            pbar.update(len(os.listdir(save_path_generated)))  # account for already existing images
+            pbar.update(len(os.listdir(save_path_generated)))
             while len(os.listdir(save_path_generated)) < num_samples_for_evaluation:
                 remaining = num_samples_for_evaluation - len(os.listdir(save_path_generated))
                 batch = min(remaining, num_samples_per_batch)
@@ -150,24 +155,31 @@ if __name__ == "__main__":
     else:
         print(f"Generated images already exist at: {save_path_generated}, skipping generation step.")
 
-    # Step 3: Compute FID and IS using torch-fidelity
+    # Step 3: Compute FID, KID, and IS using torch-fidelity
 
-    print("\nComputing FID and Inception Score using torch-fidelity...")
+    print("\nComputing FID, KID and Inception Score using torch-fidelity...")
     metrics = calculate_metrics(
-        input1=save_path_real,
+        input1=save_path_holdout,
         input2=save_path_generated,
         fid=True,
         isc=True,
         kid=True,
         cuda=torch.cuda.is_available(),
     )
+    # Compute IS of the real holdout data
+    is_holdout = calculate_metrics(
+        input1=save_path_holdout,
+        isc=True,
+        cuda=torch.cuda.is_available(),
+    )
     
     print(f"FID: {metrics['frechet_inception_distance']:.4f})")
     print(f"KID: {metrics['kernel_inception_distance_mean']:.4f} ± {metrics['kernel_inception_distance_std']:.4f}")
-    print(f"Inception Score: {metrics['inception_score_mean']:.4f} ± {metrics['inception_score_std']:.4f}")
+    print(f"IS (holdout real): {is_holdout['inception_score_mean']:.4f} ± {is_holdout['inception_score_std']:.4f}")
+    print(f"IS (generated): {metrics['inception_score_mean']:.4f} ± {metrics['inception_score_std']:.4f}")
 
     # Compute nearest-neighbor pixel distances
-    compute_nn_distance(save_path_real, save_path_generated)
+    compute_nn_distance(save_path_holdout, save_path_generated)
 
     """
     Findings:
@@ -193,4 +205,8 @@ if __name__ == "__main__":
                 - 
                 - 
         - For unet64_celeba20000 (generated): TODO
+    -----------------------------------------------------------------------------------------------------
+    Experiments on dataset size:
+    - For celeba_64_20000 (real): IS = ?
+        - simple_20000_100eps (generated):
     """
