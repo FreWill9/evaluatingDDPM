@@ -13,6 +13,7 @@ from models.simple_unet import SimpleUnet
 from models.unet import UNET
 import os
 import json
+import pandas as pd
 
 def save_preprocessed_real_images(data_path, save_dir, num_samples=None):
     """Loads and saves preprocessed real images from .pt file to PNGs."""
@@ -97,13 +98,13 @@ if __name__ == "__main__":
     model = SimpleUnet().to(device)
 
     # Set paths to preprocessed dataset, holdout dataset, and model checkpoint
-    data_path = "data/celeba_gray64_20000.pt" # For NN distance
+    data_path = "data/celeba_gray64_1000.pt" # For NN distance
     data_path_holdout = "data/celeba_gray64_holdout10000.pt" # For metrics FID, KID, IS
-    checkpoint_name = "simple_20000_100eps" # also used for json output name
+    checkpoint_name = "simple_1000_100eps500" # also used for csv entry
     checkpoint_path = f"checkpoints_dataset_size/{checkpoint_name}.pt"
 
     # Set paths to saving directory for real and generated images for evaluation
-    save_path_train = "evaluation_data/real_images/celeba_gray64_20000"
+    save_path_train = "evaluation_data/real_images/celeba_gray64_1000"
     save_path_generated = f"evaluation_data/generated_images/{checkpoint_name}"
 
     # Path to holdout set stays the same across evaluations
@@ -111,7 +112,7 @@ if __name__ == "__main__":
 
     # Set image size and number of samples for evaluation
     img_size = 64
-    num_samples_for_evaluation = 5000 # Number of samples to generate
+    num_samples_for_evaluation = 2000 # Number of samples to generate
     num_samples_per_batch = 50 # Generate and save in batches to avoid memory issues
 
     # Step 1: Save preprocessed real images as PNGs for metric calculation
@@ -186,8 +187,12 @@ if __name__ == "__main__":
     # Compute nearest-neighbor pixel distances
     nn_gen_real_mean, nn_real_real_mean = compute_nn_distance(save_path_holdout, save_path_generated)
 
-    # Save results to JSON file
+    # Save results
     result = {
+    "checkpoint_name": checkpoint_name,
+    "num_train_samples": ckpt["num_train_samples"],
+    "num_epochs": ckpt["epoch"],
+    "num_samples_evaluation": num_samples_for_evaluation,
     "fid": metrics['frechet_inception_distance'],
     "kid_mean": metrics['kernel_inception_distance_mean'],
     "kid_std": metrics['kernel_inception_distance_std'],
@@ -195,11 +200,19 @@ if __name__ == "__main__":
     "is_holdout_std": is_holdout['inception_score_std'],
     "is_generated_mean": metrics['inception_score_mean'],
     "is_generated_std": metrics['inception_score_std'],
-    "nn_gen_real_mean": nn_gen_real_mean,
-    "nn_real_real_mean": nn_real_real_mean
+    "nn_gen_real_mean": float(nn_gen_real_mean),
+    "nn_real_real_mean": float(nn_real_real_mean),
     }
-    with open(f'{checkpoint_name}_metrics.json', 'w') as f:
-        json.dump(result, f, indent=2)
+    
+    # Save results to CSV file (append one row)
+    csv_path = "metrics.csv"
+    df_new = pd.DataFrame([result])
+    if os.path.exists(csv_path):
+        df = pd.read_csv(csv_path)
+        df = pd.concat([df, df_new], ignore_index=True)
+    else:
+        df = df_new
+    df.to_csv(csv_path, index=False)
 
     """
     Findings:
