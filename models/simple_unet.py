@@ -4,6 +4,9 @@ import math
 
 """
 A minimal UNet for 64×64 single-channel images with sinusoidal timestep embeddings.
+
+This code is copied from a Colab notebook linked in this YouTube video:
+https://www.youtube.com/watch?v=a4Yfz2FxXiY&t=349s
 """
 
 class Block(nn.Module):
