@@ -12,6 +12,7 @@ from models.ho_unet import UNet as HoUNet
 from models.simple_unet import SimpleUnet
 from models.unet import UNET
 import os
+import json
 
 def save_preprocessed_real_images(data_path, save_dir, num_samples=None):
     """Loads and saves preprocessed real images from .pt file to PNGs."""
@@ -86,6 +87,7 @@ def compute_nn_distance(real_dir, gen_dir, subsample=None):
     print()
     ratio = nn_gen_real.mean() / nn_real_real.mean()
     print(f"  Ratio (gen->real / real->real): {ratio:.4f}")
+    return nn_gen_real.mean(), nn_real_real.mean()
 
 
 if __name__ == "__main__":
@@ -97,12 +99,15 @@ if __name__ == "__main__":
     # Set paths to preprocessed dataset, holdout dataset, and model checkpoint
     data_path = "data/celeba_gray64_20000.pt" # For NN distance
     data_path_holdout = "data/celeba_gray64_holdout10000.pt" # For metrics FID, KID, IS
-    checkpoint_path = "checkpoints_dataset_size/simple_20000_100eps.pt"
+    checkpoint_name = "simple_20000_100eps" # also used for json output name
+    checkpoint_path = f"checkpoints_dataset_size/{checkpoint_name}.pt"
 
     # Set paths to saving directory for real and generated images for evaluation
     save_path_train = "evaluation_data/real_images/celeba_gray64_20000"
+    save_path_generated = f"evaluation_data/generated_images/{checkpoint_name}"
+
+    # Path to holdout set stays the same across evaluations
     save_path_holdout = "evaluation_data/real_images/celeba_gray64_holdout10000"
-    save_path_generated = "evaluation_data/generated_images/simple_20000_100eps"
 
     # Set image size and number of samples for evaluation
     img_size = 64
@@ -173,13 +178,28 @@ if __name__ == "__main__":
         cuda=torch.cuda.is_available(),
     )
     
-    print(f"FID: {metrics['frechet_inception_distance']:.4f})")
+    print(f"FID: {metrics['frechet_inception_distance']:.4f}")
     print(f"KID: {metrics['kernel_inception_distance_mean']:.4f} ± {metrics['kernel_inception_distance_std']:.4f}")
     print(f"IS (holdout real): {is_holdout['inception_score_mean']:.4f} ± {is_holdout['inception_score_std']:.4f}")
     print(f"IS (generated): {metrics['inception_score_mean']:.4f} ± {metrics['inception_score_std']:.4f}")
 
     # Compute nearest-neighbor pixel distances
-    compute_nn_distance(save_path_holdout, save_path_generated)
+    nn_gen_real_mean, nn_real_real_mean = compute_nn_distance(save_path_holdout, save_path_generated)
+
+    # Save results to JSON file
+    result = {
+    "fid": metrics['frechet_inception_distance'],
+    "kid_mean": metrics['kernel_inception_distance_mean'],
+    "kid_std": metrics['kernel_inception_distance_std'],
+    "is_holdout_mean": is_holdout['inception_score_mean'],
+    "is_holdout_std": is_holdout['inception_score_std'],
+    "is_generated_mean": metrics['inception_score_mean'],
+    "is_generated_std": metrics['inception_score_std'],
+    "nn_gen_real_mean": nn_gen_real_mean,
+    "nn_real_real_mean": nn_real_real_mean
+    }
+    with open(f'{checkpoint_name}_metrics.json', 'w') as f:
+        json.dump(result, f, indent=2)
 
     """
     Findings:
