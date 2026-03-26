@@ -48,7 +48,10 @@ def save_images(model, schedule, device, img_size, num_timesteps, num_samples, s
 
 
 def compute_nn_distance(train_dir, gen_dir, hold_dir, subsample=None):
+def compute_nn_distance(train_dir, gen_dir, hold_dir, subsample=None):
     """
+    Computes nearest-neighbor pixel distances between generated and training images.
+    Prints gen->real and real->real (holdout) distances and their ratio (gen->real / real->real).
     Computes nearest-neighbor pixel distances between generated and training images.
     Prints gen->real and real->real (holdout) distances and their ratio (gen->real / real->real).
 
@@ -66,30 +69,47 @@ def compute_nn_distance(train_dir, gen_dir, hold_dir, subsample=None):
         return np.stack(imgs)
 
     train = load_images_flat(train_dir)
+    train = load_images_flat(train_dir)
     gen  = load_images_flat(gen_dir)
+    hold = load_images_flat(hold_dir)
     hold = load_images_flat(hold_dir)
 
     # Optional subsampling for faster distance computation
     if subsample is not None:
         train_idx = np.random.choice(len(train), size=min(subsample, len(train)), replace=False)
+        train_idx = np.random.choice(len(train), size=min(subsample, len(train)), replace=False)
         gen_idx  = np.random.choice(len(gen),  size=min(subsample, len(gen)),  replace=False)
         hold_idx = np.random.choice(len(hold), size=min(subsample, len(hold)), replace=False)
         train = train[train_idx]
+        hold_idx = np.random.choice(len(hold), size=min(subsample, len(hold)), replace=False)
+        train = train[train_idx]
         gen  = gen[gen_idx]
+        hold = hold[hold_idx]
+        print(f"  Subsampled to {len(gen)} generated / {len(train)} training / {len(hold)} holdout images")
         hold = hold[hold_idx]
         print(f"  Subsampled to {len(gen)} generated / {len(train)} training / {len(hold)} holdout images")
 
     print("\nComputing nearest-neighbor pixel distances...")
     gen_train_dists = pairwise_distances(gen, train, metric="euclidean")
     nn_gen_train = gen_train_dists.min(axis=1)
+    gen_train_dists = pairwise_distances(gen, train, metric="euclidean")
+    nn_gen_train = gen_train_dists.min(axis=1)
 
+    holdout_dists = pairwise_distances(hold, hold, metric="euclidean")
+    np.fill_diagonal(holdout_dists, np.inf)
+    nn_holdout_holdout = holdout_dists.min(axis=1)
     holdout_dists = pairwise_distances(hold, hold, metric="euclidean")
     np.fill_diagonal(holdout_dists, np.inf)
     nn_holdout_holdout = holdout_dists.min(axis=1)
 
     print(f"  Gen->Train  NN distance (mean): {nn_gen_train.mean():.4f}, median: {np.median(nn_gen_train):.4f}")
     print(f"  Holdout->Holdout NN distance (mean): {nn_holdout_holdout.mean():.4f}, median: {np.median(nn_holdout_holdout):.4f}")
+    print(f"  Gen->Train  NN distance (mean): {nn_gen_train.mean():.4f}, median: {np.median(nn_gen_train):.4f}")
+    print(f"  Holdout->Holdout NN distance (mean): {nn_holdout_holdout.mean():.4f}, median: {np.median(nn_holdout_holdout):.4f}")
     print()
+    ratio = nn_gen_train.mean() / nn_holdout_holdout.mean()
+    print(f"  Ratio (gen->train / holdout->holdout): {ratio:.4f}")
+    return nn_gen_train.mean(), nn_holdout_holdout.mean()
     ratio = nn_gen_train.mean() / nn_holdout_holdout.mean()
     print(f"  Ratio (gen->train / holdout->holdout): {ratio:.4f}")
     return nn_gen_train.mean(), nn_holdout_holdout.mean()
@@ -120,6 +140,7 @@ if __name__ == "__main__":
     img_size = 64
     num_samples_for_evaluation = 2000 # Trade-off between time and metric stability
     num_samples_per_batch = 50 # Generate and save in batches to avoid memory issues
+    
     
     # Step 1: Save preprocessed real images as PNGs for metric calculation
 
@@ -190,7 +211,10 @@ if __name__ == "__main__":
     print(f"IS (holdout real): {is_holdout['inception_score_mean']:.4f} ± {is_holdout['inception_score_std']:.4f}")
     print(f"IS (generated): {metrics['inception_score_mean']:.4f} ± {metrics['inception_score_std']:.4f}")
     
+    
     # Compute nearest-neighbor pixel distances
+    nn_gen_train_mean, nn_holdout_holdout_mean = compute_nn_distance(save_path_train, save_path_generated, save_path_holdout)
+    print(float(nn_gen_train_mean), float(nn_holdout_holdout_mean))
     nn_gen_train_mean, nn_holdout_holdout_mean = compute_nn_distance(save_path_train, save_path_generated, save_path_holdout)
     print(float(nn_gen_train_mean), float(nn_holdout_holdout_mean))
 
@@ -207,6 +231,8 @@ if __name__ == "__main__":
     "is_holdout_std": is_holdout['inception_score_std'],
     "is_generated_mean": metrics['inception_score_mean'],
     "is_generated_std": metrics['inception_score_std'],
+    "nn_gen_train_mean": float(nn_gen_train_mean),
+    "nn_holdout_holdout_mean": float(nn_holdout_holdout_mean),
     "nn_gen_train_mean": float(nn_gen_train_mean),
     "nn_holdout_holdout_mean": float(nn_holdout_holdout_mean),
     }
