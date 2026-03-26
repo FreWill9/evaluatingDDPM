@@ -122,7 +122,7 @@ class UNET_DS(nn.Module):
                  input_channels: int = 1,
                  output_channels: int = 1,
                  device: device = "cuda",
-                 time_steps: int = 1000):
+                 time_steps: int = 500):
         super().__init__()
         if Channels is None:
             Channels = [64, 128, 256, 512, 512, 384]

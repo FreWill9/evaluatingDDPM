@@ -3,6 +3,7 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader, TensorDataset
 from torch.amp import autocast, GradScaler
+import torch.nn.functional as F
 from tqdm import tqdm
 import os
 from diffusion_utils import get_beta_schedule, precompute_schedule, forward_diffusion
@@ -10,10 +11,11 @@ from diffusion_utils import get_beta_schedule, precompute_schedule, forward_diff
 from models.ho_unet import UNet as HoUNet
 from models.simple_unet import SimpleUnet
 from models.unet import UNET
+from models.unet_DS import UNET_DS
 
 
 def train(model, data_path,  checkpoint_name, batch_size, num_epochs, num_timesteps, 
-            learning_rate, schedule_type="linear"):
+            learning_rate, schedule_type="linear", deep_supervision="false"):
     
     tensors = torch.load(data_path)
     dataset = TensorDataset(tensors)
@@ -40,11 +42,12 @@ def train(model, data_path,  checkpoint_name, batch_size, num_epochs, num_timest
     scaler = GradScaler(device.type, enabled=use_amp)
 
     # Resume from checkpoint if available
-    checkpoint_folder = "checkpoints_dataset_size"
+    checkpoint_folder = "checkpoints"
     os.makedirs(checkpoint_folder, exist_ok=True)
     checkpoint_path = os.path.join(checkpoint_folder, f"{checkpoint_name}.pt")
     start_epoch = 0
     loss_history = []
+    if deep_supervision: aux_loss_history = []
 
     if os.path.exists(checkpoint_path):
         print(f"Resuming from checkpoint: {checkpoint_path}")
@@ -60,6 +63,7 @@ def train(model, data_path,  checkpoint_name, batch_size, num_epochs, num_timest
 
         start_epoch = ckpt["epoch"] + 1
         loss_history = ckpt.get("loss_history", [])
+        if deep_supervision: aux_loss_history = ckpt.get("aux_loss_history", [])
         # Override schedule_type from checkpoint to ensure consistency
         schedule_type = ckpt.get("schedule_type", schedule_type)
         print(f"  → Resuming at epoch {start_epoch}")
@@ -71,6 +75,7 @@ def train(model, data_path,  checkpoint_name, batch_size, num_epochs, num_timest
     for epoch in tqdm(range(start_epoch, num_epochs), desc="Training"):
         model.train()
         epoch_loss = 0.0
+        if deep_supervision: epoch_aux_loss = 0.0
 
         for (x_0,) in train_loader:
             x_0 = x_0.to(device)
@@ -83,23 +88,39 @@ def train(model, data_path,  checkpoint_name, batch_size, num_epochs, num_timest
             with autocast(device.type, enabled=use_amp):
                 # Forward pass in mixed precision: saves memory and speeds up computation
                 x_t, noise = forward_diffusion(x_0, t, schedule)
-                predicted_noise = model(x_t, t)
+                if deep_supervision:
+                    predicted_noise, aux_out = model(x_t, t)
+                    # Upsample auxiliary output and compute auxiliary loss to enable deep supervision
+                    aux_pred = F.interpolate(aux_out, size=noise.shape[-2:], mode="bilinear", align_corners=False)
+                    aux_loss = criterion(aux_pred, noise)
+                    
+                else:
+                    predicted_noise = model(x_t, t)
+                
                 loss = criterion(predicted_noise, noise)
- 
+
+                if deep_supervision:
+                    # Weighted sum of losses
+                    lambda_aux = 0.01
+                    loss = loss + lambda_aux * aux_loss
+
             scaler.scale(loss).backward()
             scaler.step(optimizer)
             scaler.update()
  
             epoch_loss += loss.item()
+            if deep_supervision: epoch_aux_loss += aux_loss.item()
 
         avg_loss = epoch_loss / len(train_loader)
+        if deep_supervision: avg_aux_loss = aux_loss / len(train_loader)
         lr_scheduler.step()
 
         tqdm.write(f"Epoch [{epoch + 1}/{num_epochs}]  Loss: {avg_loss:.6f}")
         loss_history.append(float(avg_loss))
+        if deep_supervision: aux_loss_history.append(float(avg_aux_loss))
 
         # Save checkpoint
-        torch.save({
+        checkpoint = {
             "epoch": epoch,
             "model_state_dict": model.state_dict(),
             "optimizer_state_dict": optimizer.state_dict(),
@@ -110,26 +131,30 @@ def train(model, data_path,  checkpoint_name, batch_size, num_epochs, num_timest
             "num_timesteps": num_timesteps,
             "schedule_type": schedule_type,
             "num_train_samples": len(dataset),
-        }, checkpoint_path)
+        }
+
+        if deep_supervision: checkpoint["aux_loss_history"] = aux_loss_history
+
+        torch.save(checkpoint, checkpoint_path)
         tqdm.write(f"Checkpoint saved to {checkpoint_path}")
 
     print("Training complete.")
 
 
 if __name__ == "__main__":
-    data_path = "data/celeba_gray64_1000.pt"
+    data_path = "data/celeba_gray64_10000.pt"
     
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     # Select model architecture
-    model = SimpleUnet().to(device)
+    model = UNET_DS().to(device)
 
     batch_size = 32
-    num_epochs = 100
+    num_epochs = 200
     num_timesteps = 500
     initial_learn_rate = 0.0002
 
-    checkpoint_name = f"simple_{len(torch.load(data_path))}_{num_epochs}eps{num_timesteps}"
+    checkpoint_name = f"DS64_TS500"
 
     train(model, data_path, checkpoint_name, batch_size, num_epochs, num_timesteps, 
-          initial_learn_rate, schedule_type="linear")
+          initial_learn_rate, schedule_type="linear", deep_supervision="true")

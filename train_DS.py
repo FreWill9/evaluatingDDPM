@@ -135,7 +135,7 @@ if __name__ == "__main__":
     checkpoint_name = "UNET_gpu64_DS"
     batch_size = 32
     num_epochs = 300
-    num_timesteps = 1000
+    num_timesteps = 500
     initial_learn_rate = 0.0002
 
     train(model, data_path, checkpoint_name, batch_size, num_epochs, num_timesteps, 
