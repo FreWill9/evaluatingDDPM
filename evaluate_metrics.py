@@ -11,6 +11,7 @@ from sampling_utils import sample
 from models.ho_unet import UNet as HoUNet
 from models.simple_unet import SimpleUnet
 from models.unet import UNET
+from models.unet_DS import UNET_DS
 import os
 import json
 import pandas as pd
@@ -46,10 +47,10 @@ def save_images(model, schedule, device, img_size, num_timesteps, num_samples, s
         torchvision.utils.save_image(img, os.path.join(save_dir, f"{i:04d}.png"))
 
 
-def compute_nn_distance(real_dir, gen_dir, subsample=None):
+def compute_nn_distance(train_dir, gen_dir, hold_dir, subsample=None):
     """
-    Computes nearest-neighbor pixel distances between generated and real images.
-    Prints gen->real and real->real distances and their ratio (gen->real / real->real).
+    Computes nearest-neighbor pixel distances between generated and training images.
+    Prints gen->real and real->real (holdout) distances and their ratio (gen->real / real->real).
 
     Interpretation:
     - If ratio ≈ 1 -> good: Generated images are as close to real images as real images are to each other.
@@ -64,31 +65,34 @@ def compute_nn_distance(real_dir, gen_dir, subsample=None):
             imgs.append(img.flatten())
         return np.stack(imgs)
 
-    real = load_images_flat(real_dir)
+    train = load_images_flat(train_dir)
     gen  = load_images_flat(gen_dir)
+    hold = load_images_flat(hold_dir)
 
     # Optional subsampling for faster distance computation
     if subsample is not None:
-        real_idx = np.random.choice(len(real), size=min(subsample, len(real)), replace=False)
+        train_idx = np.random.choice(len(train), size=min(subsample, len(train)), replace=False)
         gen_idx  = np.random.choice(len(gen),  size=min(subsample, len(gen)),  replace=False)
-        real = real[real_idx]
+        hold_idx = np.random.choice(len(hold), size=min(subsample, len(hold)), replace=False)
+        train = train[train_idx]
         gen  = gen[gen_idx]
-        print(f"  Subsampled to {len(gen)} generated / {len(real)} real images")
+        hold = hold[hold_idx]
+        print(f"  Subsampled to {len(gen)} generated / {len(train)} training / {len(hold)} holdout images")
 
     print("\nComputing nearest-neighbor pixel distances...")
-    gen_real_dists = pairwise_distances(gen, real, metric="euclidean")
-    nn_gen_real = gen_real_dists.min(axis=1)
+    gen_train_dists = pairwise_distances(gen, train, metric="euclidean")
+    nn_gen_train = gen_train_dists.min(axis=1)
 
-    real_real_dists = pairwise_distances(real, real, metric="euclidean")
-    np.fill_diagonal(real_real_dists, np.inf)
-    nn_real_real = real_real_dists.min(axis=1)
+    holdout_dists = pairwise_distances(hold, hold, metric="euclidean")
+    np.fill_diagonal(holdout_dists, np.inf)
+    nn_holdout_holdout = holdout_dists.min(axis=1)
 
-    print(f"  Gen->Real  NN distance (mean): {nn_gen_real.mean():.4f}, median: {np.median(nn_gen_real):.4f}")
-    print(f"  Real->Real NN distance (mean): {nn_real_real.mean():.4f}, median: {np.median(nn_real_real):.4f}")
+    print(f"  Gen->Train  NN distance (mean): {nn_gen_train.mean():.4f}, median: {np.median(nn_gen_train):.4f}")
+    print(f"  Holdout->Holdout NN distance (mean): {nn_holdout_holdout.mean():.4f}, median: {np.median(nn_holdout_holdout):.4f}")
     print()
-    ratio = nn_gen_real.mean() / nn_real_real.mean()
-    print(f"  Ratio (gen->real / real->real): {ratio:.4f}")
-    return nn_gen_real.mean(), nn_real_real.mean()
+    ratio = nn_gen_train.mean() / nn_holdout_holdout.mean()
+    print(f"  Ratio (gen->train / holdout->holdout): {ratio:.4f}")
+    return nn_gen_train.mean(), nn_holdout_holdout.mean()
 
 
 if __name__ == "__main__":
@@ -97,28 +101,30 @@ if __name__ == "__main__":
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = SimpleUnet().to(device)
 
+    training_set_size = 10000
+
     # Set paths to preprocessed dataset, holdout dataset, and model checkpoint
-    data_path = "data/celeba_gray64_1000.pt" # For NN distance
-    data_path_holdout = "data/celeba_gray64_holdout10000.pt" # For metrics FID, KID, IS
-    checkpoint_name = "simple_1000_100eps500" # also used for csv entry
+    data_path_train = f"data/celeba_gray64_{training_set_size}.pt" # For NN distance
+    checkpoint_name = f"simple_{training_set_size}_200eps500" # also used for csv entry
     checkpoint_path = f"checkpoints_dataset_size/{checkpoint_name}.pt"
 
     # Set paths to saving directory for real and generated images for evaluation
-    save_path_train = "evaluation_data/real_images/celeba_gray64_1000"
+    save_path_train = f"evaluation_data/real_images/celeba_gray64_{training_set_size}"
     save_path_generated = f"evaluation_data/generated_images/{checkpoint_name}"
 
     # Path to holdout set stays the same across evaluations
+    data_path_holdout = "data/celeba_gray64_holdout10000.pt" # For metrics FID, KID, IS
     save_path_holdout = "evaluation_data/real_images/celeba_gray64_holdout10000"
 
     # Set image size and number of samples for evaluation
     img_size = 64
-    num_samples_for_evaluation = 2000 # Number of samples to generate
+    num_samples_for_evaluation = 2000 # Trade-off between time and metric stability
     num_samples_per_batch = 50 # Generate and save in batches to avoid memory issues
-
+    
     # Step 1: Save preprocessed real images as PNGs for metric calculation
 
     if not os.path.exists(save_path_train) or len(os.listdir(save_path_train)) == 0:
-        save_preprocessed_real_images(data_path, save_path_train)
+        save_preprocessed_real_images(data_path_train, save_path_train)
         print(f"Saved preprocessed real images for evaluation at: {save_path_train}")
     else: 
         print(f"Real images already exist at: {save_path_train}, skipping saving step.")
@@ -183,9 +189,10 @@ if __name__ == "__main__":
     print(f"KID: {metrics['kernel_inception_distance_mean']:.4f} ± {metrics['kernel_inception_distance_std']:.4f}")
     print(f"IS (holdout real): {is_holdout['inception_score_mean']:.4f} ± {is_holdout['inception_score_std']:.4f}")
     print(f"IS (generated): {metrics['inception_score_mean']:.4f} ± {metrics['inception_score_std']:.4f}")
-
+    
     # Compute nearest-neighbor pixel distances
-    nn_gen_real_mean, nn_real_real_mean = compute_nn_distance(save_path_holdout, save_path_generated)
+    nn_gen_train_mean, nn_holdout_holdout_mean = compute_nn_distance(save_path_train, save_path_generated, save_path_holdout)
+    print(float(nn_gen_train_mean), float(nn_holdout_holdout_mean))
 
     # Save results
     result = {
@@ -200,8 +207,8 @@ if __name__ == "__main__":
     "is_holdout_std": is_holdout['inception_score_std'],
     "is_generated_mean": metrics['inception_score_mean'],
     "is_generated_std": metrics['inception_score_std'],
-    "nn_gen_real_mean": float(nn_gen_real_mean),
-    "nn_real_real_mean": float(nn_real_real_mean),
+    "nn_gen_train_mean": float(nn_gen_train_mean),
+    "nn_holdout_holdout_mean": float(nn_holdout_holdout_mean),
     }
     
     # Save results to CSV file (append one row)
@@ -243,3 +250,4 @@ if __name__ == "__main__":
     - For celeba_64_20000 (real): IS = ?
         - simple_20000_100eps (generated):
     """
+    
