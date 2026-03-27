@@ -1,3 +1,4 @@
+from time import time
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -15,7 +16,7 @@ from models.unet_DS import UNET_DS
 
 
 def train(model, data_path,  checkpoint_name, batch_size, num_epochs, num_timesteps, 
-            learning_rate, schedule_type="linear", deep_supervision="false"):
+            learning_rate, schedule_type="linear", deep_supervision=False):
     
     tensors = torch.load(data_path)
     dataset = TensorDataset(tensors)
@@ -24,7 +25,7 @@ def train(model, data_path,  checkpoint_name, batch_size, num_epochs, num_timest
         batch_size=batch_size,
         shuffle=True,
         drop_last=True,
-        num_workers=4,
+        num_workers=1,
         pin_memory=True,
         persistent_workers=True,
     )
@@ -47,6 +48,7 @@ def train(model, data_path,  checkpoint_name, batch_size, num_epochs, num_timest
     checkpoint_path = os.path.join(checkpoint_folder, f"{checkpoint_name}.pt")
     start_epoch = 0
     loss_history = []
+    epoch_time_history = []
     if deep_supervision: aux_loss_history = []
 
     if os.path.exists(checkpoint_path):
@@ -64,6 +66,7 @@ def train(model, data_path,  checkpoint_name, batch_size, num_epochs, num_timest
         start_epoch = ckpt["epoch"] + 1
         loss_history = ckpt.get("loss_history", [])
         if deep_supervision: aux_loss_history = ckpt.get("aux_loss_history", [])
+        epoch_time_history = ckpt.get("epoch_time_history", [])
         # Override schedule_type from checkpoint to ensure consistency
         schedule_type = ckpt.get("schedule_type", schedule_type)
         print(f"  → Resuming at epoch {start_epoch}")
@@ -73,6 +76,7 @@ def train(model, data_path,  checkpoint_name, batch_size, num_epochs, num_timest
 
     # Training loop
     for epoch in tqdm(range(start_epoch, num_epochs), desc="Training"):
+        epoch_start_time = time()
         model.train()
         epoch_loss = 0.0
         if deep_supervision: epoch_aux_loss = 0.0
@@ -112,8 +116,12 @@ def train(model, data_path,  checkpoint_name, batch_size, num_epochs, num_timest
             if deep_supervision: epoch_aux_loss += aux_loss.item()
 
         avg_loss = epoch_loss / len(train_loader)
-        if deep_supervision: avg_aux_loss = aux_loss / len(train_loader)
+        if deep_supervision: avg_aux_loss = epoch_aux_loss / len(train_loader)
         lr_scheduler.step()
+
+        # Measure time taken for epoch and compute samples per second
+        epoch_time = time() - epoch_start_time
+        epoch_time_history.append(float(epoch_time))
 
         tqdm.write(f"Epoch [{epoch + 1}/{num_epochs}]  Loss: {avg_loss:.6f}")
         loss_history.append(float(avg_loss))
@@ -128,6 +136,7 @@ def train(model, data_path,  checkpoint_name, batch_size, num_epochs, num_timest
             "scaler_state_dict": scaler.state_dict(),
             "loss": avg_loss,
             "loss_history": loss_history,
+            "epoch_time_history": epoch_time_history,
             "num_timesteps": num_timesteps,
             "schedule_type": schedule_type,
             "num_train_samples": len(dataset),
@@ -146,15 +155,15 @@ if __name__ == "__main__":
     
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    # Select model architecture
-    model = UNET_DS().to(device)
-
     batch_size = 32
     num_epochs = 200
     num_timesteps = 500
     initial_learn_rate = 0.0002
 
-    checkpoint_name = f"DS64_TS500"
+    checkpoint_name = f"DS1k_linear_DS"
+
+    # Select model architecture
+    model = UNET_DS(time_steps=num_timesteps).to(device)
 
     train(model, data_path, checkpoint_name, batch_size, num_epochs, num_timesteps, 
-          initial_learn_rate, schedule_type="linear", deep_supervision="true")
+          initial_learn_rate, schedule_type="cosine", deep_supervision=True)
