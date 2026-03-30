@@ -35,7 +35,11 @@ main.err
 main.out
 outdir/
 data/
+evaluation_data/
+data_old/
 evaluatingDDPM/
 outdir/
 checkpoints/
+checkpoints_dataset_size/
 loss_plots/
+plots/

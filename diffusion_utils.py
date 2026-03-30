@@ -31,7 +31,7 @@ def betas_for_alpha_bar(num_diffusion_timesteps, alpha_bar, max_beta=0.999):
     return np.array(betas)
 
 
-def cosine_beta_schedule(num_timesteps):
+def cosine_beta_schedule(num_timesteps, clamped=True):
     """
     Cosine variance schedule from Improved DDPM paper (Nichol & Dhariwal, 2021).
 
@@ -43,7 +43,10 @@ def cosine_beta_schedule(num_timesteps):
         num_timesteps,
         lambda t: math.cos((t + 0.008) / 1.008 * math.pi / 2) ** 2,
     )
-    return torch.from_numpy(betas).float()
+    betas = torch.from_numpy(betas).float()
+    if clamped:
+        betas = betas.clamp(0.0001, 0.02)  # match linear schedule range
+    return betas
 
 
 def sigmoid_schedule(t, start, end, tau, clip_min=1e-9):
@@ -94,7 +97,7 @@ def precompute_schedule(betas):
     }
 
 
-def get_beta_schedule(schedule_type, num_timesteps, device):
+def get_beta_schedule(schedule_type, num_timesteps, device, clamped=True):
     """Load and compute a beta schedule by name."""
     schedulers = {
         "linear": linear_beta_schedule,

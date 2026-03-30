@@ -156,14 +156,14 @@ if __name__ == "__main__":
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     batch_size = 32
-    num_epochs = 200
+    num_epochs = 700
     num_timesteps = 500
     initial_learn_rate = 0.0002
 
-    checkpoint_name = f"DS1k_linear_DS"
+    checkpoint_name = f"DS500_linear"
 
     # Select model architecture
-    model = UNET_DS(time_steps=num_timesteps).to(device)
+    model = UNET_DS().to(device)
 
     train(model, data_path, checkpoint_name, batch_size, num_epochs, num_timesteps, 
-          initial_learn_rate, schedule_type="cosine", deep_supervision=True)
+          initial_learn_rate, schedule_type="linear", deep_supervision=True)
