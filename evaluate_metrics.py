@@ -15,6 +15,7 @@ from models.unet_DS import UNET_DS
 import os
 import pandas as pd
 
+
 def save_preprocessed_real_images(data_path, save_dir, num_samples=None):
     """Loads and saves preprocessed real images from .pt file to PNGs."""
     images = torch.load(data_path)  # [N, 1, img_size, img_size], normalized to [-1, 1]
